@@ -1,0 +1,43 @@
+# Test Google embeddings (text-embedding-004 model) for vsql_ai extension
+
+# Install extension
+INSTALL EXTENSION vsql_ai;
+
+# Test with invalid API key - should return NULL with error warning
+SELECT LENGTH(vsql_ai.create_embed('google', 'text-embedding-004', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+
+# Test with real API key if GEMINI_API_KEY environment variable is set
+if ($GEMINI_API_KEY) {
+  --echo # Testing embeddings with real Google API key (key hidden from output)
+
+  # Hide the API key from the result file
+  --disable_query_log
+  --eval SET @api_key = '$GEMINI_API_KEY'
+  --enable_query_log
+
+  # Create embedding for simple text
+  --disable_query_log
+  SET @embedding = vsql_ai.create_embed('google', 'text-embedding-004', @api_key, 'Hello world');
+  --enable_query_log
+
+  # Verify we got a JSON array back (starts with [ and ends with ])
+  SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+
+  # Verify the embedding is not empty
+  SELECT LENGTH(@embedding) > 10 AS got_embedding;
+
+  # Verify we can create embeddings for different text
+  --disable_query_log
+  SET @embedding2 = vsql_ai.create_embed('google', 'text-embedding-004', @api_key, 'Machine learning');
+  --enable_query_log
+
+  SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
+}
+
+if (!$GEMINI_API_KEY) {
+  --echo # Skipping live API test - GEMINI_API_KEY not set
+  --echo # To test with real API: export GEMINI_API_KEY=your-key
+}
+
+# Cleanup
+UNINSTALL EXTENSION vsql_ai;

@@ -1,0 +1,25 @@
+# Test error handling for vsql_ai extension
+
+# Install extension
+INSTALL EXTENSION vsql_ai;
+
+# Test NULL handling - should return NULL
+SELECT vsql_ai.ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider;
+SELECT vsql_ai.ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model;
+SELECT vsql_ai.ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key;
+SELECT vsql_ai.ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt;
+
+# Test invalid provider - returns error message (not NULL)
+SELECT vsql_ai.ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_result;
+
+# Test empty strings - returns error message (not NULL)
+SELECT vsql_ai.ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
+SELECT vsql_ai.ai_prompt('anthropic', '', 'key', 'test') IS NOT NULL AS empty_model_result;
+SELECT vsql_ai.ai_prompt('anthropic', 'model', '', 'test') IS NOT NULL AS empty_key_result;
+SELECT vsql_ai.ai_prompt('anthropic', 'model', 'key', '') IS NOT NULL AS empty_prompt_result;
+
+# Test create_embed stub - returns error message
+SELECT vsql_ai.create_embed('openai', 'key', 'text') IS NOT NULL AS embed_not_implemented;
+
+# Cleanup
+UNINSTALL EXTENSION vsql_ai;

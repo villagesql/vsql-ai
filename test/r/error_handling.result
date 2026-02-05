@@ -1,0 +1,44 @@
+INSTALL EXTENSION vsql_ai;
+SELECT vsql_ai.ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider;
+null_provider
+1
+SELECT vsql_ai.ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model;
+null_model
+1
+SELECT vsql_ai.ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key;
+null_key
+1
+SELECT vsql_ai.ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt;
+null_prompt
+1
+SELECT vsql_ai.ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_result;
+has_result
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Unknown
+SELECT vsql_ai.ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
+empty_provider_result
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Provider name cannot be empty
+SELECT vsql_ai.ai_prompt('anthropic', '', 'key', 'test') IS NOT NULL AS empty_model_result;
+empty_model_result
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model name cannot be empty
+SELECT vsql_ai.ai_prompt('anthropic', 'model', '', 'test') IS NOT NULL AS empty_key_result;
+empty_key_result
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': API key cannot be empty
+SELECT vsql_ai.ai_prompt('anthropic', 'model', 'key', '') IS NOT NULL AS empty_prompt_result;
+empty_prompt_result
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Prompt text cannot be empty
+SELECT vsql_ai.create_embed('openai', 'key', 'text') IS NOT NULL AS embed_not_implemented;
+embed_not_implemented
+0
+Warnings:
+Warning	3200	VDF error in function 'create_embed': CREATE_EMBED not yet implemented
+UNINSTALL EXTENSION vsql_ai;

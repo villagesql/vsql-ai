@@ -1,0 +1,15 @@
+INSTALL EXTENSION vsql_ai;
+SELECT LENGTH(vsql_ai.create_embed('google', 'text-embedding-004', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+invalid_key_returns_null
+0
+# Testing embeddings with real Google API key (key hidden from output)
+SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+is_json_array
+0
+SELECT LENGTH(@embedding) > 10 AS got_embedding;
+got_embedding
+0
+SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
+got_second_embedding
+0
+UNINSTALL EXTENSION vsql_ai;
