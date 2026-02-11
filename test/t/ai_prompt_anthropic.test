@@ -4,7 +4,7 @@
 INSTALL EXTENSION vsql_ai;
 
 # Test with invalid API key - should return NULL with error warning
-SELECT LENGTH(vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
 
 # Test with real API key if ANTHROPIC_API_KEY environment variable is set
 if ($ANTHROPIC_API_KEY) {
@@ -16,10 +16,10 @@ if ($ANTHROPIC_API_KEY) {
   --enable_query_log
 
   # Simple prompt test - Claude should respond with SUCCESS
-  SELECT vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+  SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
   # Verify we got a non-empty response
-  SELECT LENGTH(vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+  SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 }
 
 if (!$ANTHROPIC_API_KEY) {

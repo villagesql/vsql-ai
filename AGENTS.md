@@ -11,13 +11,13 @@ This is the VillageSQL AI Extension (vsql-ai) that adds AI capabilities to Villa
 ## Build System
 
 - **Build**: `cd build && cmake .. && make`
-- **Create VEB package**: Automatically created by `make` as `vsql_ai.veb`
+- **Create VEB package**: Automatically created by `make` as `veb`
 - **Install extension**: `make install` (copies VEB to configured install directory)
 
 The build process:
 1. Uses CMake to configure build with VillageSQL SDK via `FindVillageSQL.cmake`
-2. Compiles C++ source files into shared library `vsql_ai.so`
-3. Packages library with `manifest.json` into `vsql_ai.veb` archive
+2. Compiles C++ source files into shared library `so`
+3. Packages library with `manifest.json` into `veb` archive
 4. VEB can be installed to VillageSQL's VEB directory for use
 
 For development with VillageSQL SDK:
@@ -140,10 +140,10 @@ INSTALL EXTENSION vsql_ai;
 Then test the functions:
 ```sql
 -- Test AI prompting
-SELECT vsql_ai.ai_prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
+SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
 
 -- Test embeddings
-SELECT vsql_ai.create_embed('google', 'text-embedding-004', @api_key, 'Hello world');
+SELECT create_embed('google', 'gemini-embedding-001', @api_key, 'Hello world');
 ```
 
 ## Provider Architecture
@@ -191,7 +191,7 @@ public:
 - gemini-3-pro-preview
 
 **Embeddings:**
-- text-embedding-004 (768 dimensions)
+- gemini-embedding-001 (3072 dimensions by default)
 
 ## Common Tasks for AI Agents
 

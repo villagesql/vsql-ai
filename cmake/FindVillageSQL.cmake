@@ -22,9 +22,10 @@ Find the VillageSQL Extension SDK.
 This module finds the VillageSQL Extension SDK using the following methods
 (in order of priority):
 
-1. ``VillageSQL_SDK_DIR`` if explicitly set by the user
-2. The ``villagesql_config`` script if found in PATH
-3. Direct detection in ``~/.villagesql``
+1. ``VillageSQL_BUILD_DIR`` for development builds (points to VillageSQL build tree)
+2. ``VillageSQL_SDK_DIR`` if explicitly set by the user
+3. The ``villagesql_config`` script if found in PATH
+4. Direct detection in ``~/.villagesql``
 
 Imported Targets
 ^^^^^^^^^^^^^^^^
@@ -56,8 +57,17 @@ This module defines the following variables:
 ``VILLAGESQL_CONFIG_EXECUTABLE``
   Path to the villagesql_config script (if found).
 
+``VillageSQL_VEB_INSTALL_DIR``
+  Directory for installing VEB files. Automatically set when using
+  ``VillageSQL_BUILD_DIR`` to point to ``veb_output_directory`` in the build tree.
+
 Cache Variables
 ^^^^^^^^^^^^^^^
+
+``VillageSQL_BUILD_DIR``
+  Set this to the VillageSQL build directory for development builds.
+  The SDK will be found in the staged SDK directory, and
+  ``VillageSQL_VEB_INSTALL_DIR`` will be set to ``veb_output_directory`` in the build tree.
 
 ``VillageSQL_SDK_DIR``
   Set this variable to the SDK installation directory to override
@@ -72,20 +82,60 @@ check that ``CMAKE_CXX_STANDARD`` is set appropriately.
 Example Usage
 ^^^^^^^^^^^^^
 
-::
-
   # Automatic detection
   find_package(VillageSQL REQUIRED)
 
-  # Or with explicit path
+  # Development build (building against VillageSQL build tree)
+  cmake -DVillageSQL_BUILD_DIR=/path/to/villagesql/build ..
+
+  # Or with explicit SDK path
   cmake -DVillageSQL_SDK_DIR=/path/to/sdk ..
 
 #]=======================================================================]
 
 set(_villagesql_found FALSE)
 
-# Method 1: Use VillageSQL_SDK_DIR if explicitly set
-if(VillageSQL_SDK_DIR)
+# Method 1: Use VillageSQL_BUILD_DIR for development builds
+if(VillageSQL_BUILD_DIR AND NOT _villagesql_found)
+  # Look for staged SDK in build directory
+  file(GLOB _sdk_dirs "${VillageSQL_BUILD_DIR}/villagesql-extension-sdk-*")
+  if(_sdk_dirs)
+    list(GET _sdk_dirs 0 _sdk_dir)
+    if(EXISTS "${_sdk_dir}/include/villagesql/extension.h")
+      set(VillageSQL_PREFIX "${_sdk_dir}")
+      set(VillageSQL_INCLUDE_DIR "${_sdk_dir}/include")
+      set(VillageSQL_CXX_FLAGS "-I${_sdk_dir}/include")
+      # Try to get version from villagesql_config if present
+      if(EXISTS "${_sdk_dir}/bin/villagesql_config")
+        set(VILLAGESQL_CONFIG_EXECUTABLE "${_sdk_dir}/bin/villagesql_config")
+        execute_process(
+          COMMAND ${VILLAGESQL_CONFIG_EXECUTABLE} --version
+          OUTPUT_VARIABLE VillageSQL_VERSION
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_QUIET
+        )
+      endif()
+      # Auto-set VEB install directory to the build tree
+      if(NOT DEFINED VillageSQL_VEB_INSTALL_DIR)
+        set(VillageSQL_VEB_INSTALL_DIR "${VillageSQL_BUILD_DIR}/veb_output_directory")
+      endif()
+      set(_villagesql_found TRUE)
+      message(STATUS "Using VillageSQL SDK from build directory: ${_sdk_dir}")
+      message(STATUS "VEB install directory: ${VillageSQL_VEB_INSTALL_DIR}")
+    endif()
+    unset(_sdk_dir)
+  else()
+    message(WARNING
+      "VillageSQL_BUILD_DIR is set to '${VillageSQL_BUILD_DIR}' "
+      "but no staged SDK (villagesql-extension-sdk-*) was found. "
+      "Make sure the VillageSQL build has completed."
+    )
+  endif()
+  unset(_sdk_dirs)
+endif()
+
+# Method 2: Use VillageSQL_SDK_DIR if explicitly set
+if(VillageSQL_SDK_DIR AND NOT _villagesql_found)
   if(EXISTS "${VillageSQL_SDK_DIR}/include/villagesql/extension.h")
     set(VillageSQL_PREFIX "${VillageSQL_SDK_DIR}")
     set(VillageSQL_INCLUDE_DIR "${VillageSQL_SDK_DIR}/include")
@@ -109,7 +159,7 @@ if(VillageSQL_SDK_DIR)
   endif()
 endif()
 
-# Method 2: Look for villagesql_config in PATH
+# Method 3: Look for villagesql_config in PATH
 if(NOT _villagesql_found)
   find_program(VILLAGESQL_CONFIG_EXECUTABLE
     NAMES villagesql_config
@@ -151,7 +201,7 @@ if(NOT _villagesql_found)
   endif()
 endif()
 
-# Method 3: Fall back to ~/.villagesql
+# Method 4: Fall back to ~/.villagesql
 if(NOT _villagesql_found)
   set(_default_prefix "$ENV{HOME}/.villagesql")
 
