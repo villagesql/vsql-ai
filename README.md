@@ -17,10 +17,12 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 ### Build from Source
 
 #### Prerequisites
-- VillageSQL Extension SDK (installed at `~/.villagesql` or specified via `VillageSQL_SDK_DIR`)
+- VillageSQL build directory (specified via `VillageSQL_BUILD_DIR`)
 - CMake 3.16 or higher
 - C++17 compatible compiler
 - OpenSSL development libraries (for HTTPS connections)
+
+📚 **Full Documentation**: Visit [villagesql.com/docs](https://villagesql.com/docs) for comprehensive guides on building extensions, architecture details, and more.
 
 #### Build Instructions
 1. Clone the repository:
@@ -30,19 +32,26 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
    ```
 
 2. Configure CMake with required paths:
+
+   **Linux:**
    ```bash
    mkdir -p build
    cd build
-   cmake .. -DVillageSQL_SDK_DIR=/path/to/villagesql/sdk -DVEB_INSTALL_DIR=/path/to/veb/directory
+   cmake .. -DVillageSQL_BUILD_DIR=$HOME/build/villagesql
    ```
 
-   **Note**:
-   - `VillageSQL_SDK_DIR`: Path to VillageSQL Extension SDK
-   - `VEB_INSTALL_DIR`: Directory where `make install` will copy the VEB file (optional)
+   **macOS:**
+   ```bash
+   mkdir -p build
+   cd build
+   cmake .. -DVillageSQL_BUILD_DIR=~/build/villagesql
+   ```
+
+   **Note**: `VillageSQL_BUILD_DIR` should point to your VillageSQL build directory.
 
 3. Build the extension:
    ```bash
-   make
+   make -j $(($(getconf _NPROCESSORS_ONLN) - 2))
    ```
 
    This creates the `veb` package in the build directory.
@@ -273,8 +282,18 @@ The extension includes comprehensive tests using the MySQL Test Runner (MTR) fra
 
 This method assumes you have successfully run `make install` to install the VEB to your veb_dir.
 
+**Linux:**
 ```bash
-cd ~/build/mysql-test
+cd $HOME/build/villagesql/mysql-test
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+
+# Run individual test
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/test error_handling
+```
+
+**macOS:**
+```bash
+cd ~/build/villagesql/mysql-test
 perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
 
 # Run individual test
@@ -285,6 +304,14 @@ perl mysql-test-run.pl --suite=/path/to/vsql-ai/test error_handling
 
 Use this to test a specific VEB build without installing it first:
 
+**Linux:**
+```bash
+cd $HOME/build/villagesql/mysql-test
+VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
+  perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+```
+
+**macOS:**
 ```bash
 cd ~/build/mysql-test
 VSQL_AI_VEB=/path/to/vsql-ai/build/veb \
@@ -303,8 +330,16 @@ The extension includes live API tests for each provider. Each test will skip liv
    ```
 
 2. **Run the test:**
+
+   **Linux:**
    ```bash
-   cd ~/build/mysql-test
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_anthropic
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_anthropic
    ```
 
@@ -316,14 +351,30 @@ The extension includes live API tests for each provider. Each test will skip liv
    ```
 
 2. **Run the prompt test:**
+
+   **Linux:**
    ```bash
-   cd ~/build/mysql-test
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_google
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_google
    ```
 
 3. **Run the embeddings test:**
+
+   **Linux:**
    ```bash
-   cd ~/build/mysql-test
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
    ```
 
