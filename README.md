@@ -54,7 +54,7 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
    make -j $(($(getconf _NPROCESSORS_ONLN) - 2))
    ```
 
-   This creates the `vsql_ai.veb` package in the build directory.
+   This creates the `veb` package in the build directory.
 
 4. Install the VEB (optional):
    ```bash
@@ -125,7 +125,7 @@ FROM questions;
 SET @api_key = 'your-google-api-key';
 SELECT create_embed(
     'google',
-    'text-embedding-004',
+    'gemini-embedding-001',
     @api_key,
     'Machine learning is fascinating'
 ) AS embedding;
@@ -146,12 +146,12 @@ CREATE TABLE documents (
 SET @api_key = 'your-google-api-key';
 INSERT INTO documents (id, content, embedding)
 VALUES (1, 'Machine learning is a subset of artificial intelligence',
-        create_embed('google', 'text-embedding-004', @api_key,
+        create_embed('google', 'gemini-embedding-001', @api_key,
                             'Machine learning is a subset of artificial intelligence'));
 
 -- Query to generate embeddings for multiple documents
 SELECT id, content,
-       create_embed('google', 'text-embedding-004', @api_key, content) AS embedding
+       create_embed('google', 'gemini-embedding-001', @api_key, content) AS embedding
 FROM documents;
 ```
 
@@ -202,16 +202,16 @@ Generate text embeddings for vector search and similarity analysis.
 
 **Parameters:**
 - `provider` (STRING): Embedding provider ("google")
-- `model` (STRING): Model identifier (e.g., "text-embedding-004")
+- `model` (STRING): Model identifier (e.g., "gemini-embedding-001")
 - `api_key` (STRING): API key for authentication
 - `text` (STRING): Text to create embedding from
 
-**Returns:** STRING - JSON array of embedding vector (768 dimensions for text-embedding-004)
+**Returns:** STRING - JSON array of embedding vector (3072 dimensions by default for gemini-embedding-001)
 
 **Examples:**
 ```sql
 -- Google Gemini text embeddings
-SELECT create_embed('google', 'text-embedding-004', @api_key, 'Machine learning is fascinating');
+SELECT create_embed('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
 
 -- Result: [0.02646778, 0.019067757, -0.05332306, ...]
 ```
@@ -313,8 +313,8 @@ VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
 
 **macOS:**
 ```bash
-cd ~/build/villagesql/mysql-test
-VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
+cd ~/build/mysql-test
+VSQL_AI_VEB=/path/to/vsql-ai/build/veb \
   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
 ```
 
@@ -416,7 +416,7 @@ The extension uses:
 - **OpenSSL**: SSL/TLS for secure HTTPS connections
 
 ### Build Targets
-- `make` - Build the extension and create the `vsql_ai.veb` package
+- `make` - Build the extension and create the `veb` package
 
 ## Roadmap
 

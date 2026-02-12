@@ -59,7 +59,7 @@ VEF_CREATE_VEB(
 )
 
 # Installation (optional - if user wants to install to a specific location)
-if(DEFINED VEB_INSTALL_DIR)
-    install(FILES ${VEB_OUTPUT} DESTINATION ${VEB_INSTALL_DIR})
-    install(CODE "message(STATUS \"${EXTENSION_NAME} extension installed to: ${VEB_INSTALL_DIR}/${EXTENSION_NAME}.veb\")")
+if(DEFINED VillageSQL_VEB_INSTALL_DIR)
+    install(FILES ${VEB_OUTPUT} DESTINATION ${VillageSQL_VEB_INSTALL_DIR})
+    install(CODE "message(STATUS \"${EXTENSION_NAME} extension installed to: ${VillageSQL_VEB_INSTALL_DIR}/${EXTENSION_NAME}.veb\")")
 endif()

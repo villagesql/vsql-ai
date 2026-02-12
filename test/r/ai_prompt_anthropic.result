@@ -1,12 +1,12 @@
 INSTALL EXTENSION vsql_ai;
-SELECT LENGTH(vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
 invalid_key_returns_null
 0
 # Testing with real Anthropic API key (key hidden from output)
-SELECT vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
 1
-SELECT LENGTH(vsql_ai.ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 got_response
 1
 UNINSTALL EXTENSION vsql_ai;
