@@ -2,7 +2,7 @@
 
 # VillageSQL AI Extension
 
-A powerful AI extension for VillageSQL Server that adds AI prompt capabilities and text embeddings directly in SQL queries. Interact with AI models from Anthropic, OpenAI, and Google using familiar SQL syntax.
+An AI extension for VillageSQL Server that adds AI prompt capabilities and text embeddings directly in SQL queries. Interact with AI models from Anthropic, OpenAI, and Google using familiar SQL syntax.
 
 ## Features
 
@@ -446,7 +446,7 @@ License information can be found in the [LICENSE](./LICENSE) file.
 
 ## Contributing
 
-VillageSQL welcomes contributions from the community. For more information, please see the [VillageSQL Contributing Guide](https://github.com/villagesql/villagesql/blob/main/CONTRIBUTING.md).
+VillageSQL welcomes contributions from the community. For more information, please see the [VillageSQL Contributing Guide](https://github.com/villagesql/villagesql-server/blob/main/CONTRIBUTING.md).
 
 ## Contact
 
