@@ -1,0 +1,50 @@
+name: test
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  test-build:
+    name: Tests Build with ${{ matrix.vsql}}
+    strategy:
+      matrix:
+        vsql:
+          - "0.0.2"
+          - "main"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout villagesql-server ${{ matrix.vsql }}
+        uses: actions/checkout@v6
+        with:
+          repository: villagesql/villagesql-server
+          ref: ${{ matrix.vsql }}
+          path: villagesql-server
+      - name: Checkout extension
+        uses: actions/checkout@v6
+        with:
+          path: extension
+      - name: Setup Environment
+        run: |
+          sudo apt update
+          sudo apt install -y cmake gcc make libtirpc-dev
+      - name: Build server
+        run: |
+          mkdir -p villagesql-server/build
+          cd villagesql-server/build
+          cmake .. \
+            -DWITH_ROUTER=OFF \
+            -DWITH_UNIT_TESTS=OFF \
+            -DWITHOUT_SERVER=ON
+          make -j$(nproc) sdk
+      - name: Build extension
+        run: |
+          mkdir output
+          mkdir extension/build
+          cd extension/build
+          cmake .. \
+            -DVillageSQL_BUILD_DIR=../villagesql-server/build \
+            -DVillageSQL_VEB_INSTALL_DIR=${GITHUB_WORKSPACE}/output
+          make -j$(nproc) install
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-output-${{ matrix.vsql }}.zip
+          path: output/*.veb
