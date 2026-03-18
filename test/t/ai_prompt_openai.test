@@ -4,7 +4,7 @@
 INSTALL EXTENSION vsql_ai;
 
 # Test with invalid API key - should produce a warning
-SELECT prompt('openai', 'gpt-4o-mini', 'invalid_key_12345', 'Hello');
+SELECT ai_prompt('openai', 'gpt-4o-mini', 'invalid_key_12345', 'Hello');
 SHOW WARNINGS;
 
 # Test with real API key if OPENAI_API_KEY environment variable is set
@@ -17,10 +17,10 @@ if ($OPENAI_API_KEY) {
   --enable_query_log
 
   # Simple prompt test - GPT should respond with SUCCESS
-  SELECT prompt('openai', 'gpt-4o-mini', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+  SELECT ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
   # Verify we got a non-empty response
-  SELECT LENGTH(prompt('openai', 'gpt-4o-mini', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+  SELECT LENGTH(ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 }
 
 if (!$OPENAI_API_KEY) {

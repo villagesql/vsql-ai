@@ -76,7 +76,7 @@ INSTALL EXTENSION vsql_ai;
 #### Anthropic Claude
 ```sql
 -- Simple prompt with Claude
-SELECT prompt(
+SELECT ai_prompt(
     'anthropic',
     'claude-sonnet-4-5-20250929',
     'your-api-key-here',
@@ -87,7 +87,7 @@ SELECT prompt(
 #### Google Gemini
 ```sql
 -- Simple prompt with Gemini
-SELECT prompt(
+SELECT ai_prompt(
     'google',
     'gemini-2.5-flash',
     'your-api-key-here',
@@ -98,7 +98,7 @@ SELECT prompt(
 #### OpenAI GPT
 ```sql
 -- Simple prompt with GPT
-SELECT prompt(
+SELECT ai_prompt(
     'openai',
     'gpt-4o-mini',
     'your-api-key-here',
@@ -109,7 +109,7 @@ SELECT prompt(
 #### Local Ollama
 ```sql
 -- Simple prompt with local Ollama (no API key needed)
-SELECT prompt(
+SELECT ai_prompt(
     'local',
     'llama3.2',
     '',
@@ -129,13 +129,13 @@ INSERT INTO questions VALUES
 -- Get AI responses for multiple questions using Claude
 SET @api_key = 'your-anthropic-api-key';
 SELECT id, question,
-       prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, question) AS answer
+       ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, question) AS answer
 FROM questions;
 
 -- Or use Gemini
 SET @api_key = 'your-google-api-key';
 SELECT id, question,
-       prompt('google', 'gemini-2.5-flash', @api_key, question) AS answer
+       ai_prompt('google', 'gemini-2.5-flash', @api_key, question) AS answer
 FROM questions;
 ```
 
@@ -145,7 +145,7 @@ FROM questions;
 ```sql
 -- Generate embedding for text
 SET @api_key = 'your-google-api-key';
-SELECT embedding(
+SELECT ai_embedding(
     'google',
     'gemini-embedding-001',
     @api_key,
@@ -168,7 +168,7 @@ CREATE TABLE documents (
 SET @api_key = 'your-google-api-key';
 INSERT INTO documents (id, content, embedding)
 VALUES (1, 'Machine learning is a subset of artificial intelligence',
-        embedding('google', 'gemini-embedding-001', @api_key,
+        ai_embedding('google', 'gemini-embedding-001', @api_key,
                             'Machine learning is a subset of artificial intelligence'));
 
 -- Query to generate embeddings for multiple documents
@@ -216,7 +216,7 @@ Connects to Ollama running on `127.0.0.1:11434`. No API key required. Use any mo
 
 ### Function Reference
 
-#### `prompt(provider, model, api_key, prompt)`
+#### `ai_prompt(provider, model, api_key, prompt)`
 Send a prompt to an AI provider and get a response.
 
 **Parameters:**
@@ -230,19 +230,19 @@ Send a prompt to an AI provider and get a response.
 **Examples:**
 ```sql
 -- Anthropic Claude
-SELECT prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Hello!');
+SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Hello!');
 
 -- Google Gemini
-SELECT prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
+SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
 
 -- OpenAI GPT
-SELECT prompt('openai', 'gpt-4o-mini', @api_key, 'Hello!');
+SELECT ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Hello!');
 
 -- Local Ollama (no API key needed)
-SELECT prompt('local', 'llama3.2', '', 'Hello!');
+SELECT ai_prompt('local', 'llama3.2', '', 'Hello!');
 ```
 
-#### `embedding(provider, model, api_key, text)`
+#### `ai_embedding(provider, model, api_key, text)`
 Generate text embeddings for vector search and similarity analysis.
 
 **Parameters:**
@@ -256,15 +256,15 @@ Generate text embeddings for vector search and similarity analysis.
 **Examples:**
 ```sql
 -- Google Gemini text embeddings
-SELECT embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
+SELECT ai_embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
 
 -- Result: [0.02646778, 0.019067757, -0.05332306, ...]
 
 -- OpenAI text embeddings
-SELECT embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
+SELECT ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
 
 -- Local Ollama text embeddings (no API key needed)
-SELECT embedding('local', 'nomic-embed-text', '', 'Machine learning is fascinating');
+SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascinating');
 ```
 
 ## Security Considerations
@@ -281,17 +281,17 @@ SELECT embedding('local', 'nomic-embed-text', '', 'Machine learning is fascinati
    SET @api_key = 'sk-ant-your-api-key';
 
    -- Use variable in queries
-   SELECT prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'prompt');
+   SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'prompt');
    ```
    Session variables keep API keys out of query text and reduce exposure in logs.
 
 2. **Avoid Hardcoded Keys**:
    ```sql
    -- ❌ BAD: Key visible in logs
-   SELECT prompt('anthropic', 'model', 'sk-ant-12345...', 'prompt');
+   SELECT ai_prompt('anthropic', 'model', 'sk-ant-12345...', 'prompt');
 
    -- ✅ GOOD: Use session variable
-   SELECT prompt('anthropic', 'model', @api_key, 'prompt');
+   SELECT ai_prompt('anthropic', 'model', @api_key, 'prompt');
    ```
 
 3. **Shell Environment Variables** (Future Enhancement):

@@ -213,7 +213,7 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
 VEF_GENERATE_ENTRY_POINTS(
     make_extension("vsql_ai", "0.0.3")
-        .func(make_func<&vsql_ai::prompt_impl>("prompt")
+        .func(make_func<&vsql_ai::prompt_impl>("ai_prompt")
                   .returns(STRING)
                   .param(STRING)  // provider
                   .param(STRING)  // model
@@ -222,7 +222,7 @@ VEF_GENERATE_ENTRY_POINTS(
                   .buffer_size(65535)  // Large buffer for AI responses
                   .build())
 
-        .func(make_func<&vsql_ai::embedding_impl>("embedding")
+        .func(make_func<&vsql_ai::embedding_impl>("ai_embedding")
                   .returns(STRING)
                   .param(STRING)  // provider
                   .param(STRING)  // model

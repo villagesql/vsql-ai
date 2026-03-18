@@ -31,7 +31,7 @@ make install
 ## Architecture
 
 **Core Components:**
-- `src/ai_functions.cc` - VEF function implementations (`prompt`, `embedding`) and extension registration
+- `src/ai_functions.cc` - VEF function implementations (`ai_prompt`, `ai_embedding`) and extension registration
 - `src/ai_providers.h` - Abstract provider interface
 - `src/ai_providers.cc` - Concrete provider implementations (Anthropic, Google, OpenAI, Local/Ollama)
 - `src/http_client.h/cc` - HTTP/HTTPS client for API calls
@@ -41,8 +41,8 @@ make install
 - `test/r/` - Expected test results directory (`.result` files)
 
 **Available Functions:**
-- `prompt(provider, model, api_key, prompt)` - Send prompts to AI models and get text responses
-- `embedding(provider, model, api_key, text)` - Generate text embeddings (vector representations)
+- `ai_prompt(provider, model, api_key, prompt)` - Send prompts to AI models and get text responses
+- `ai_embedding(provider, model, api_key, text)` - Generate text embeddings (vector representations)
 
 **Dependencies:**
 - Requires VillageSQL Extension SDK
@@ -141,13 +141,13 @@ INSTALL EXTENSION vsql_ai;
 Then test the functions:
 ```sql
 -- Test AI prompting
-SELECT prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
+SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
 
 -- Test embeddings
-SELECT embedding('google', 'gemini-embedding-001', @api_key, 'Hello world');
+SELECT ai_embedding('google', 'gemini-embedding-001', @api_key, 'Hello world');
 
 -- Test local Ollama (no API key needed)
-SELECT prompt('local', 'llama3.2', '', 'What is 2+2?');
+SELECT ai_prompt('local', 'llama3.2', '', 'What is 2+2?');
 ```
 
 ## Provider Architecture

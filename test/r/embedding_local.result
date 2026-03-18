@@ -1,0 +1,20 @@
+INSTALL EXTENSION vsql_ai;
+SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
+ai_embedding('local', 'nomic-embed-text', '', 'Hello')
+NULL
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not found, try pulling it first
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not found, try pulling it first
+# Testing embeddings with local Ollama (model from OLLAMA_EMBED_MODEL env var)
+SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+is_json_array
+1
+SELECT LENGTH(@embedding) > 10 AS got_embedding;
+got_embedding
+1
+SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
+got_second_embedding
+1
+UNINSTALL EXTENSION vsql_ai;
