@@ -212,7 +212,7 @@ void create_embed_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 // =============================================================================
 
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension("vsql_ai", "0.0.1")
+    make_extension("vsql_ai", "0.0.2")
         .func(make_func<&vsql_ai::ai_prompt_impl>("ai_prompt")
                   .returns(STRING)
                   .param(STRING)  // provider

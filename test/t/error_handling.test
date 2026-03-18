@@ -19,7 +19,7 @@ SELECT ai_prompt('anthropic', 'model', '', 'test') IS NOT NULL AS empty_key_resu
 SELECT ai_prompt('anthropic', 'model', 'key', '') IS NOT NULL AS empty_prompt_result;
 
 # Test create_embed stub - returns error message
-SELECT create_embed('openai', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
+SELECT create_embed('unknown_provider', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

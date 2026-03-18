@@ -86,6 +86,29 @@ class GoogleProvider : public AIProvider {
                              std::string* error) const;
 };
 
+// OpenAI provider implementation (GPT models)
+class OpenAIProvider : public AIProvider {
+ public:
+  OpenAIProvider();
+  ~OpenAIProvider() override;
+
+  std::string prompt(const std::string& model, const std::string& api_key,
+                     const std::string& prompt_text,
+                     std::string* error) override;
+
+  std::string embed(const std::string& model, const std::string& api_key,
+                    const std::string& text, std::string* error) override;
+
+ private:
+  std::string get_endpoint() const;
+  std::map<std::string, std::string> get_headers(
+      const std::string& api_key) const;
+  std::string build_request_body(const std::string& model,
+                                  const std::string& prompt) const;
+  std::string parse_response(const std::string& response_json,
+                             std::string* error) const;
+};
+
 // Factory function to create provider by name
 std::unique_ptr<AIProvider> create_provider(const std::string& provider_name);
 
