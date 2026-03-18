@@ -571,7 +571,7 @@ License information can be found in the [LICENSE](./LICENSE) file.
 
 ## Contributing
 
-VillageSQL welcomes contributions from the community. For more information, please see the [VillageSQL Contributing Guide](https://github.com/villagesql/villagesql/blob/main/CONTRIBUTING.md).
+VillageSQL welcomes contributions from the community. For more information, please see the [VillageSQL Contributing Guide](https://github.com/villagesql/villagesql-server/blob/main/CONTRIBUTING.md).
 
 ## Contact
 
