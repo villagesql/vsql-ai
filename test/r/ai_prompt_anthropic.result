@@ -1,17 +1,17 @@
 INSTALL EXTENSION vsql_ai;
-SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello');
-ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')
+SELECT prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello');
+prompt('anthropic', 'claude-sonnet-4-5-20250929', 'invalid_key_12345', 'Hello')
 NULL
 Warnings:
-Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
+Warning	3200	VDF error in function 'prompt': invalid x-api-key
 SHOW WARNINGS;
 Level	Code	Message
-Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
+Warning	3200	VDF error in function 'prompt': invalid x-api-key
 # Testing with real Anthropic API key (key hidden from output)
-SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+SELECT prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
 1
-SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 got_response
 1
 UNINSTALL EXTENSION vsql_ai;

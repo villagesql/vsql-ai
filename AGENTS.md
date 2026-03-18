@@ -6,7 +6,7 @@ This file provides guidance to AI coding assistants when working with code in th
 
 ## Project Overview
 
-This is the VillageSQL AI Extension (vsql-ai) that adds AI capabilities to VillageSQL Server. It provides functions to interact with AI models from Anthropic Claude and Google Gemini directly from SQL queries, including text generation (prompting) and text embeddings.
+This is the VillageSQL AI Extension (vsql-ai) that adds AI capabilities to VillageSQL Server. It provides functions to interact with AI models from Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama directly from SQL queries, including text generation (prompting) and text embeddings.
 
 ## Build System
 
@@ -31,9 +31,9 @@ make install
 ## Architecture
 
 **Core Components:**
-- `src/ai_functions.cc` - VEF function implementations (`ai_prompt`, `create_embed`) and extension registration
+- `src/ai_functions.cc` - VEF function implementations (`prompt`, `embedding`) and extension registration
 - `src/ai_providers.h` - Abstract provider interface
-- `src/ai_providers.cc` - Concrete provider implementations (Anthropic, Google)
+- `src/ai_providers.cc` - Concrete provider implementations (Anthropic, Google, OpenAI, Local/Ollama)
 - `src/http_client.h/cc` - HTTP/HTTPS client for API calls
 - `manifest.json` - Extension metadata (name, version, description, author, license)
 - `CMakeLists.txt` - CMake build configuration
@@ -41,8 +41,8 @@ make install
 - `test/r/` - Expected test results directory (`.result` files)
 
 **Available Functions:**
-- `ai_prompt(provider, model, api_key, prompt)` - Send prompts to AI models and get text responses
-- `create_embed(provider, model, api_key, text)` - Generate text embeddings (vector representations)
+- `prompt(provider, model, api_key, prompt)` - Send prompts to AI models and get text responses
+- `embedding(provider, model, api_key, text)` - Generate text embeddings (vector representations)
 
 **Dependencies:**
 - Requires VillageSQL Extension SDK
@@ -53,7 +53,7 @@ make install
 
 **Code Organization:**
 - File naming: lowercase with underscores (e.g., `ai_functions.cc`)
-- Function naming: lowercase with underscores (e.g., `ai_prompt_impl`)
+- Function naming: lowercase with underscores (e.g., `prompt_impl`)
 - Variable naming: lowercase with underscores (e.g., `provider_name`)
 - Provider pattern: Abstract `AIProvider` base class with concrete implementations
 
@@ -141,10 +141,13 @@ INSTALL EXTENSION vsql_ai;
 Then test the functions:
 ```sql
 -- Test AI prompting
-SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
+SELECT prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
 
 -- Test embeddings
-SELECT create_embed('google', 'gemini-embedding-001', @api_key, 'Hello world');
+SELECT embedding('google', 'gemini-embedding-001', @api_key, 'Hello world');
+
+-- Test local Ollama (no API key needed)
+SELECT prompt('local', 'llama3.2', '', 'What is 2+2?');
 ```
 
 ## Provider Architecture
@@ -170,6 +173,8 @@ public:
 ### Concrete Providers
 - **AnthropicProvider**: Implements Claude API (messages endpoint)
 - **GoogleProvider**: Implements Gemini API (generateContent, embedContent endpoints)
+- **OpenAIProvider**: Implements OpenAI API (chat/completions, embeddings endpoints)
+- **LocalProvider**: Connects to Ollama on 127.0.0.1:11434 using OpenAI-compatible API (no API key required)
 
 ### Adding a New Provider
 1. Create a new class that inherits from `AIProvider`
@@ -193,6 +198,20 @@ public:
 
 **Embeddings:**
 - gemini-embedding-001 (3072 dimensions by default)
+
+### OpenAI
+**Chat:**
+- gpt-4o
+- gpt-4o-mini
+
+**Embeddings:**
+- text-embedding-3-small (1536 dimensions)
+- text-embedding-3-large (3072 dimensions)
+
+### Local (Ollama on 127.0.0.1:11434)
+Any model pulled in Ollama. No API key required. Common models:
+- llama3.2, mistral, gemma2 (chat)
+- nomic-embed-text, mxbai-embed-large (embeddings)
 
 ## Common Tasks for AI Agents
 

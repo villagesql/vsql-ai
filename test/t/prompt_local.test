@@ -1,0 +1,31 @@
+# Test local provider (Ollama) for vsql_ai extension
+
+# Install extension
+INSTALL EXTENSION vsql_ai;
+
+# Test with no Ollama running - should produce a warning (connection refused)
+SELECT prompt('local', 'llama3.2', '', 'Hello');
+SHOW WARNINGS;
+
+# Test with real Ollama if running locally
+if ($OLLAMA_MODEL) {
+  --echo # Testing with local Ollama (model from OLLAMA_MODEL env var)
+
+  --disable_query_log
+  --eval SET @model = '$OLLAMA_MODEL'
+  --enable_query_log
+
+  # Simple prompt test - model should respond with SUCCESS
+  SELECT prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+
+  # Verify we got a non-empty response
+  SELECT LENGTH(prompt('local', @model, '', 'Reply with just: OK')) > 0 AS got_response;
+}
+
+if (!$OLLAMA_MODEL) {
+  --echo # Skipping live API test - OLLAMA_MODEL not set
+  --echo # To test with real Ollama: export OLLAMA_MODEL=llama3.2
+}
+
+# Cleanup
+UNINSTALL EXTENSION vsql_ai;

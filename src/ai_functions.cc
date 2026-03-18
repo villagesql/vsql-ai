@@ -33,10 +33,10 @@ using json = nlohmann::json;
 namespace vsql_ai {
 
 // =============================================================================
-// AI_PROMPT Implementation
+// PROMPT Implementation
 // =============================================================================
 
-void ai_prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
+void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
                     vef_invalue_t* model_arg, vef_invalue_t* api_key_arg,
                     vef_invalue_t* prompt_arg, vef_vdf_result_t* result) {
   // Validate NULL inputs
@@ -65,7 +65,7 @@ void ai_prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
     return;
   }
 
-  if (api_key.empty()) {
+  if (api_key.empty() && provider_name != "local") {
     result->type = VEF_RESULT_ERROR;
     strcpy(result->error_msg, "API key cannot be empty");
     return;
@@ -119,10 +119,10 @@ void ai_prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 }
 
 // =============================================================================
-// CREATE_EMBED Implementation
+// EMBEDDING Implementation
 // =============================================================================
 
-void create_embed_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
+void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
                        vef_invalue_t* model_arg, vef_invalue_t* api_key_arg,
                        vef_invalue_t* text_arg, vef_vdf_result_t* result) {
   // Validate NULL inputs
@@ -151,7 +151,7 @@ void create_embed_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
     return;
   }
 
-  if (api_key.empty()) {
+  if (api_key.empty() && provider_name != "local") {
     result->type = VEF_RESULT_ERROR;
     strcpy(result->error_msg, "API key cannot be empty");
     return;
@@ -212,8 +212,8 @@ void create_embed_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 // =============================================================================
 
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension("vsql_ai", "0.0.2")
-        .func(make_func<&vsql_ai::ai_prompt_impl>("ai_prompt")
+    make_extension("vsql_ai", "0.0.3")
+        .func(make_func<&vsql_ai::prompt_impl>("prompt")
                   .returns(STRING)
                   .param(STRING)  // provider
                   .param(STRING)  // model
@@ -222,7 +222,7 @@ VEF_GENERATE_ENTRY_POINTS(
                   .buffer_size(65535)  // Large buffer for AI responses
                   .build())
 
-        .func(make_func<&vsql_ai::create_embed_impl>("create_embed")
+        .func(make_func<&vsql_ai::embedding_impl>("embedding")
                   .returns(STRING)
                   .param(STRING)  // provider
                   .param(STRING)  // model
