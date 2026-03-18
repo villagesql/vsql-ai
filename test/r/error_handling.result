@@ -36,7 +36,7 @@ empty_prompt_result
 0
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Prompt text cannot be empty
-SELECT create_embed('openai', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
+SELECT create_embed('unknown_provider', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
 embed_not_implemented
 0
 Warnings:

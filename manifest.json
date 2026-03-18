@@ -1,6 +1,6 @@
 {
   "name": "vsql_ai",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "AI and embedding functions for VillageSQL",
   "author": "VillageSQL Community",
   "license": "GPL-2.0"

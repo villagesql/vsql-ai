@@ -7,8 +7,8 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 ## Features
 
 - **AI Prompting**: Send prompts to AI models directly from SQL queries
-- **Multiple Providers**: Support for Anthropic Claude and Google Gemini
-- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini
+- **Multiple Providers**: Support for Anthropic Claude, Google Gemini, and OpenAI GPT
+- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini or OpenAI
 - **High Performance**: Efficient C++ implementation with minimal overhead
 - **Secure**: HTTPS communication with SSL certificate verification
 
@@ -95,6 +95,17 @@ SELECT ai_prompt(
 ) AS response;
 ```
 
+#### OpenAI GPT
+```sql
+-- Simple prompt with GPT
+SELECT ai_prompt(
+    'openai',
+    'gpt-4o-mini',
+    'your-api-key-here',
+    'Explain quantum computing in one sentence'
+) AS response;
+```
+
 #### Using with Table Data
 ```sql
 -- Use with table data
@@ -166,14 +177,24 @@ Claude 4.5 models:
 - **Claude Opus 4.5**: `claude-opus-4-5-20251101` (maximum capability and intelligence)
 
 #### Google (provider: `google`)
-Gemini models:
+**Generative:**
 - **Gemini 3 Flash**: `gemini-3-flash-preview` (balanced model for speed, scale, and frontier intelligence)
 - **Gemini 3 Pro**: `gemini-3-pro-preview` (best model for multimodal understanding)
 - **Gemini 2.5 Flash**: `gemini-2.5-flash` (stable - best price-performance ratio)
 - **Gemini 2.5 Pro**: `gemini-2.5-pro` (stable - state-of-the-art reasoning over complex problems)
 
-Coming soon:
-- **OpenAI**: GPT models (gpt-4, gpt-4-turbo, etc.)
+**Embeddings:**
+- **Gemini Embedding 001**: `gemini-embedding-001` (3072 dimensions by default)
+- **Gemini Embedding 2**: `gemini-embedding-2-preview` (improved embedding model)
+
+#### OpenAI (provider: `openai`)
+**Chat:**
+- **GPT-4o**: `gpt-4o` (flagship multimodal model)
+- **GPT-4o mini**: `gpt-4o-mini` (fast and cost-effective)
+
+**Embeddings:**
+- **text-embedding-3-small**: `text-embedding-3-small` (1536 dimensions, best value)
+- **text-embedding-3-large**: `text-embedding-3-large` (3072 dimensions, highest performance)
 
 ### Function Reference
 
@@ -181,8 +202,8 @@ Coming soon:
 Send a prompt to an AI provider and get a response.
 
 **Parameters:**
-- `provider` (STRING): AI provider name ("anthropic", "google")
-- `model` (STRING): Model identifier (e.g., "claude-sonnet-4-5-20250929", "gemini-2.5-flash")
+- `provider` (STRING): AI provider name ("anthropic", "google", "openai")
+- `model` (STRING): Model identifier (e.g., "claude-sonnet-4-5-20250929", "gemini-2.5-flash", "gpt-4o-mini")
 - `api_key` (STRING): API key for authentication
 - `prompt` (STRING): The prompt text to send to the AI
 
@@ -195,18 +216,21 @@ SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Hello!');
 
 -- Google Gemini
 SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
+
+-- OpenAI GPT
+SELECT ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Hello!');
 ```
 
 #### `create_embed(provider, model, api_key, text)`
 Generate text embeddings for vector search and similarity analysis.
 
 **Parameters:**
-- `provider` (STRING): Embedding provider ("google")
-- `model` (STRING): Model identifier (e.g., "gemini-embedding-001")
+- `provider` (STRING): Embedding provider ("google", "openai")
+- `model` (STRING): Model identifier (e.g., "gemini-embedding-001", "text-embedding-3-small")
 - `api_key` (STRING): API key for authentication
 - `text` (STRING): Text to create embedding from
 
-**Returns:** STRING - JSON array of embedding vector (3072 dimensions by default for gemini-embedding-001)
+**Returns:** STRING - JSON array of embedding vector (dimensions vary by model)
 
 **Examples:**
 ```sql
@@ -214,6 +238,9 @@ Generate text embeddings for vector search and similarity analysis.
 SELECT create_embed('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
 
 -- Result: [0.02646778, 0.019067757, -0.05332306, ...]
+
+-- OpenAI text embeddings
+SELECT create_embed('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
 ```
 
 ## Security Considerations
@@ -378,6 +405,41 @@ The extension includes live API tests for each provider. Each test will skip liv
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
    ```
 
+#### Testing OpenAI GPT
+
+1. **Export your API key:**
+   ```bash
+   export OPENAI_API_KEY='your-api-key-here'
+   ```
+
+2. **Run the prompt test:**
+
+   **Linux:**
+   ```bash
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_openai
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_openai
+   ```
+
+3. **Run the embeddings test:**
+
+   **Linux:**
+   ```bash
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   ```
+
 **Security Note:** All tests automatically:
 - Skip live API calls if the environment variable is not set
 - Hide API keys from test output using `--disable_query_log`
@@ -424,8 +486,8 @@ The extension uses:
 - ✅ Google Gemini integration
 - ✅ Embedding generation (Google Gemini)
 - ✅ Session variable support for API keys
-- ⏳ OpenAI GPT integration
-- ⏳ OpenAI embeddings
+- ✅ OpenAI GPT integration
+- ✅ OpenAI embeddings
 - ⏳ Shell environment variable support for API keys
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs
