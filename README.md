@@ -173,7 +173,7 @@ VALUES (1, 'Machine learning is a subset of artificial intelligence',
 
 -- Query to generate embeddings for multiple documents
 SELECT id, content,
-       embedding('google', 'gemini-embedding-001', @api_key, content) AS embedding
+       ai_embedding('google', 'gemini-embedding-001', @api_key, content) AS embedding
 FROM documents;
 ```
 
@@ -420,13 +420,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
    ```
 
 #### Testing OpenAI GPT
@@ -455,13 +455,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
    ```
 
 #### Testing Local Ollama
@@ -479,13 +479,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test prompt_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test prompt_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
    ```
 
 4. **Run the embeddings test:**
@@ -493,13 +493,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test embedding_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test embedding_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
    ```
 
 **Security Note:** All tests automatically:
