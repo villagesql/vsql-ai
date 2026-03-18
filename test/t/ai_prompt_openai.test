@@ -3,8 +3,9 @@
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# Test with invalid API key - should return NULL with error warning
-SELECT LENGTH(ai_prompt('openai', 'gpt-4o-mini', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+# Test with invalid API key - should produce a warning
+SELECT ai_prompt('openai', 'gpt-4o-mini', 'invalid_key_12345', 'Hello');
+SHOW WARNINGS;
 
 # Test with real API key if OPENAI_API_KEY environment variable is set
 if ($OPENAI_API_KEY) {

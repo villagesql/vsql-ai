@@ -3,8 +3,9 @@
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# Test with invalid API key - should return NULL with error warning
-SELECT LENGTH(create_embed('google', 'gemini-embedding-001', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
+# Test with invalid API key - should produce a warning
+SELECT create_embed('google', 'gemini-embedding-001', 'invalid_key_12345', 'Hello');
+SHOW WARNINGS;
 
 # Test with real API key if GEMINI_API_KEY environment variable is set
 if ($GEMINI_API_KEY) {

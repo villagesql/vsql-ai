@@ -1,7 +1,12 @@
 INSTALL EXTENSION vsql_ai;
-SELECT LENGTH(ai_prompt('google', 'gemini-2.5-flash', 'invalid_key_12345', 'Hello')) IS NULL AS invalid_key_returns_null;
-invalid_key_returns_null
-0
+SELECT ai_prompt('google', 'gemini-2.5-flash', 'invalid_key_12345', 'Hello');
+ai_prompt('google', 'gemini-2.5-flash', 'invalid_key_12345', 'Hello')
+NULL
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': API key not valid. Please pass a valid API key.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_prompt': API key not valid. Please pass a valid API key.
 # Testing with real Google API key (key hidden from output)
 SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
