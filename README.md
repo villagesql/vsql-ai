@@ -2,13 +2,13 @@
 
 # VillageSQL AI Extension
 
-An AI extension for VillageSQL Server that adds AI prompt capabilities and text embeddings directly in SQL queries. Interact with AI models from Anthropic, OpenAI, and Google using familiar SQL syntax.
+A powerful AI extension for VillageSQL Server that adds AI prompt capabilities and text embeddings directly in SQL queries. Interact with AI models from Anthropic, OpenAI, Google, and local Ollama using familiar SQL syntax.
 
 ## Features
 
 - **AI Prompting**: Send prompts to AI models directly from SQL queries
-- **Multiple Providers**: Support for Anthropic Claude, Google Gemini, and OpenAI GPT
-- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini or OpenAI
+- **Multiple Providers**: Support for Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama
+- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama
 - **High Performance**: Efficient C++ implementation with minimal overhead
 - **Secure**: HTTPS communication with SSL certificate verification
 
@@ -106,6 +106,17 @@ SELECT ai_prompt(
 ) AS response;
 ```
 
+#### Local Ollama
+```sql
+-- Simple prompt with local Ollama (no API key needed)
+SELECT ai_prompt(
+    'local',
+    'llama3.2',
+    '',
+    'Explain quantum computing in one sentence'
+) AS response;
+```
+
 #### Using with Table Data
 ```sql
 -- Use with table data
@@ -134,7 +145,7 @@ FROM questions;
 ```sql
 -- Generate embedding for text
 SET @api_key = 'your-google-api-key';
-SELECT create_embed(
+SELECT ai_embedding(
     'google',
     'gemini-embedding-001',
     @api_key,
@@ -157,12 +168,12 @@ CREATE TABLE documents (
 SET @api_key = 'your-google-api-key';
 INSERT INTO documents (id, content, embedding)
 VALUES (1, 'Machine learning is a subset of artificial intelligence',
-        create_embed('google', 'gemini-embedding-001', @api_key,
+        ai_embedding('google', 'gemini-embedding-001', @api_key,
                             'Machine learning is a subset of artificial intelligence'));
 
 -- Query to generate embeddings for multiple documents
 SELECT id, content,
-       create_embed('google', 'gemini-embedding-001', @api_key, content) AS embedding
+       ai_embedding('google', 'gemini-embedding-001', @api_key, content) AS embedding
 FROM documents;
 ```
 
@@ -196,15 +207,22 @@ Claude 4.5 models:
 - **text-embedding-3-small**: `text-embedding-3-small` (1536 dimensions, best value)
 - **text-embedding-3-large**: `text-embedding-3-large` (3072 dimensions, highest performance)
 
+#### Local Ollama (provider: `local`)
+Connects to Ollama running on `127.0.0.1:11434`. No API key required. Use any model you have pulled in Ollama.
+
+**Chat:** Any Ollama chat model (e.g., `llama3.2`, `mistral`, `gemma2`)
+
+**Embeddings:** Any Ollama embedding model (e.g., `nomic-embed-text`, `mxbai-embed-large`)
+
 ### Function Reference
 
 #### `ai_prompt(provider, model, api_key, prompt)`
 Send a prompt to an AI provider and get a response.
 
 **Parameters:**
-- `provider` (STRING): AI provider name ("anthropic", "google", "openai")
-- `model` (STRING): Model identifier (e.g., "claude-sonnet-4-5-20250929", "gemini-2.5-flash", "gpt-4o-mini")
-- `api_key` (STRING): API key for authentication
+- `provider` (STRING): AI provider name ("anthropic", "google", "openai", "local")
+- `model` (STRING): Model identifier (e.g., "claude-sonnet-4-5-20250929", "gemini-2.5-flash", "gpt-4o-mini", "llama3.2")
+- `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
 - `prompt` (STRING): The prompt text to send to the AI
 
 **Returns:** STRING - The AI model's response
@@ -219,15 +237,18 @@ SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
 
 -- OpenAI GPT
 SELECT ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Hello!');
+
+-- Local Ollama (no API key needed)
+SELECT ai_prompt('local', 'llama3.2', '', 'Hello!');
 ```
 
-#### `create_embed(provider, model, api_key, text)`
+#### `ai_embedding(provider, model, api_key, text)`
 Generate text embeddings for vector search and similarity analysis.
 
 **Parameters:**
-- `provider` (STRING): Embedding provider ("google", "openai")
-- `model` (STRING): Model identifier (e.g., "gemini-embedding-001", "text-embedding-3-small")
-- `api_key` (STRING): API key for authentication
+- `provider` (STRING): Embedding provider ("google", "openai", "local")
+- `model` (STRING): Model identifier (e.g., "gemini-embedding-001", "text-embedding-3-small", "nomic-embed-text")
+- `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
 - `text` (STRING): Text to create embedding from
 
 **Returns:** STRING - JSON array of embedding vector (dimensions vary by model)
@@ -235,12 +256,15 @@ Generate text embeddings for vector search and similarity analysis.
 **Examples:**
 ```sql
 -- Google Gemini text embeddings
-SELECT create_embed('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
+SELECT ai_embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
 
 -- Result: [0.02646778, 0.019067757, -0.05332306, ...]
 
 -- OpenAI text embeddings
-SELECT create_embed('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
+SELECT ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
+
+-- Local Ollama text embeddings (no API key needed)
+SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascinating');
 ```
 
 ## Security Considerations
@@ -396,13 +420,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
    ```
 
 #### Testing OpenAI GPT
@@ -431,13 +455,51 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test create_embed_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
+   ```
+
+#### Testing Local Ollama
+
+1. **Ensure Ollama is running** on `127.0.0.1:11434` with a model pulled.
+
+2. **Export the model name:**
+   ```bash
+   export OLLAMA_MODEL='llama3.2'
+   export OLLAMA_EMBED_MODEL='nomic-embed-text'
+   ```
+
+3. **Run the prompt test:**
+
+   **Linux:**
+   ```bash
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
+   ```
+
+4. **Run the embeddings test:**
+
+   **Linux:**
+   ```bash
+   cd $HOME/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
+   ```
+
+   **macOS:**
+   ```bash
+   cd ~/build/villagesql/mysql-test
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
    ```
 
 **Security Note:** All tests automatically:
@@ -454,7 +516,7 @@ The extension includes live API tests for each provider. Each test will skip liv
 vsql-ai/
 ├── src/
 │   ├── ai_functions.cc      # VEF function implementations and registration
-│   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google)
+│   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google, Local)
 │   └── http_client.h/.cc    # HTTP client wrapper for API calls
 ├── include/
 │   ├── httplib.h            # cpp-httplib single header
@@ -488,6 +550,7 @@ The extension uses:
 - ✅ Session variable support for API keys
 - ✅ OpenAI GPT integration
 - ✅ OpenAI embeddings
+- ✅ Local Ollama provider (no API key required)
 - ⏳ Shell environment variable support for API keys
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs

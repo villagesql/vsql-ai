@@ -1,0 +1,17 @@
+INSTALL EXTENSION vsql_ai;
+SELECT ai_prompt('local', 'llama3.2', '', 'Hello');
+ai_prompt('local', 'llama3.2', '', 'Hello')
+NULL
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': model 'llama3.2' not found
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_prompt': model 'llama3.2' not found
+# Testing with local Ollama (model from OLLAMA_MODEL env var)
+SELECT ai_prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+contains_success
+1
+SELECT LENGTH(ai_prompt('local', @model, '', 'Reply with just: OK')) > 0 AS got_response;
+got_response
+1
+UNINSTALL EXTENSION vsql_ai;

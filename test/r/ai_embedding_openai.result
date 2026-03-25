@@ -1,0 +1,20 @@
+INSTALL EXTENSION vsql_ai;
+SELECT ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello');
+ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello')
+NULL
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': Incorrect API key provided: invalid_*****2345. You can find your API key at https://platform.openai.com/account/api-keys.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_embedding': Incorrect API key provided: invalid_*****2345. You can find your API key at https://platform.openai.com/account/api-keys.
+# Testing embeddings with real OpenAI API key (key hidden from output)
+SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+is_json_array
+1
+SELECT LENGTH(@embedding) > 10 AS got_embedding;
+got_embedding
+1
+SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
+got_second_embedding
+1
+UNINSTALL EXTENSION vsql_ai;
