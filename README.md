@@ -336,19 +336,19 @@ This method assumes you have successfully run `make install` to install the VEB 
 **Linux:**
 ```bash
 cd $HOME/build/villagesql/mysql-test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 
 # Run individual test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/test error_handling
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test error_handling
 ```
 
 **macOS:**
 ```bash
 cd ~/build/villagesql/mysql-test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 
 # Run individual test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/test error_handling
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test error_handling
 ```
 
 **Option 2: Using a specific VEB file**
@@ -359,14 +359,14 @@ Use this to test a specific VEB build without installing it first:
 ```bash
 cd $HOME/build/villagesql/mysql-test
 VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
-  perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+  perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 ```
 
 **macOS:**
 ```bash
 cd ~/build/mysql-test
 VSQL_AI_VEB=/path/to/vsql-ai/build/veb \
-  perl mysql-test-run.pl --suite=/path/to/vsql-ai/test
+  perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 ```
 
 ### Testing with Live API Calls
@@ -385,13 +385,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_anthropic
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_anthropic
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_anthropic
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_anthropic
    ```
 
 #### Testing Google Gemini
@@ -406,13 +406,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_google
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_google
    ```
 
 3. **Run the embeddings test:**
@@ -420,13 +420,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_google
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_google
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_google
    ```
 
 #### Testing OpenAI GPT
@@ -441,13 +441,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_openai
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_openai
    ```
 
 3. **Run the embeddings test:**
@@ -455,13 +455,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_openai
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
    ```
 
 #### Testing Local Ollama
@@ -479,13 +479,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_local
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_prompt_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_local
    ```
 
 4. **Run the embeddings test:**
@@ -493,13 +493,13 @@ The extension includes live API tests for each provider. Each test will skip liv
    **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_local
    ```
 
    **macOS:**
    ```bash
    cd ~/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/test ai_embedding_local
+   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_local
    ```
 
 **Security Note:** All tests automatically:
@@ -523,7 +523,7 @@ vsql-ai/
 │   └── nlohmann/json.hpp    # nlohmann/json single header
 ├── cmake/
 │   └── FindVillageSQL.cmake # CMake module to locate VillageSQL SDK
-├── test/
+├── mysql-test/
 │   ├── t/                   # MTR test files
 │   └── r/                   # MTR expected results
 ├── manifest.json            # VEB package manifest
