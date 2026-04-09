@@ -1,5 +1,9 @@
 # Test local provider (Ollama) embeddings for vsql_ai extension
 
+if (!$OLLAMA_EMBED_MODEL) {
+  skip Requires OLLAMA_EMBED_MODEL environment variable;
+}
+
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
@@ -7,37 +11,29 @@ INSTALL EXTENSION vsql_ai;
 SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
 SHOW WARNINGS;
 
-# Test with real Ollama if running locally
-if ($OLLAMA_EMBED_MODEL) {
-  --echo # Testing embeddings with local Ollama (model from OLLAMA_EMBED_MODEL env var)
+--echo # Running live API test
 
-  --disable_query_log
-  --eval SET @model = '$OLLAMA_EMBED_MODEL'
-  --enable_query_log
+--disable_query_log
+--eval SET @model = '$OLLAMA_EMBED_MODEL'
+--enable_query_log
 
-  # Create embedding for simple text
-  --disable_query_log
-  SET @embedding = ai_embedding('local', @model, '', 'Hello world');
-  --enable_query_log
+# Create embedding for simple text
+--disable_query_log
+SET @embedding = ai_embedding('local', @model, '', 'Hello world');
+--enable_query_log
 
-  # Verify we got a JSON array back (starts with [ and ends with ])
-  SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+# Verify we got a JSON array back (starts with [ and ends with ])
+SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 
-  # Verify the embedding is not empty
-  SELECT LENGTH(@embedding) > 10 AS got_embedding;
+# Verify the embedding is not empty
+SELECT LENGTH(@embedding) > 10 AS got_embedding;
 
-  # Verify we can create embeddings for different text
-  --disable_query_log
-  SET @embedding2 = ai_embedding('local', @model, '', 'Machine learning');
-  --enable_query_log
+# Verify we can create embeddings for different text
+--disable_query_log
+SET @embedding2 = ai_embedding('local', @model, '', 'Machine learning');
+--enable_query_log
 
-  SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
-}
-
-if (!$OLLAMA_EMBED_MODEL) {
-  --echo # Skipping live API test - OLLAMA_EMBED_MODEL not set
-  --echo # To test with real Ollama: export OLLAMA_EMBED_MODEL=nomic-embed-text
-}
+SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

@@ -7,7 +7,7 @@ Warning	3200	VDF error in function 'ai_prompt': model 'llama3.2' not found
 SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_prompt': model 'llama3.2' not found
-# Testing with local Ollama (model from OLLAMA_MODEL env var)
+# Running live API test
 SELECT ai_prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
 1

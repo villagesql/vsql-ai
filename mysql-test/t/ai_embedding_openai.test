@@ -1,5 +1,10 @@
 # Test OpenAI embeddings (text-embedding-3-small model) for vsql_ai extension
 
+# Skip if OPENAI_API_KEY is not set
+if (!$OPENAI_API_KEY) {
+  skip Requires OPENAI_API_KEY environment variable;
+}
+
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
@@ -7,38 +12,31 @@ INSTALL EXTENSION vsql_ai;
 SELECT ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello');
 SHOW WARNINGS;
 
-# Test with real API key if OPENAI_API_KEY environment variable is set
-if ($OPENAI_API_KEY) {
-  --echo # Testing embeddings with real OpenAI API key (key hidden from output)
+# Test with real API key
+--echo # Running live API test
 
-  # Hide the API key from the result file
-  --disable_query_log
-  --eval SET @api_key = '$OPENAI_API_KEY'
-  --enable_query_log
+# Hide the API key from the result file
+--disable_query_log
+--eval SET @api_key = '$OPENAI_API_KEY'
+--enable_query_log
 
-  # Create embedding for simple text
-  --disable_query_log
-  SET @embedding = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Hello world');
-  --enable_query_log
+# Create embedding for simple text
+--disable_query_log
+SET @embedding = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Hello world');
+--enable_query_log
 
-  # Verify we got a JSON array back (starts with [ and ends with ])
-  SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
+# Verify we got a JSON array back (starts with [ and ends with ])
+SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 
-  # Verify the embedding is not empty
-  SELECT LENGTH(@embedding) > 10 AS got_embedding;
+# Verify the embedding is not empty
+SELECT LENGTH(@embedding) > 10 AS got_embedding;
 
-  # Verify we can create embeddings for different text
-  --disable_query_log
-  SET @embedding2 = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning');
-  --enable_query_log
+# Verify we can create embeddings for different text
+--disable_query_log
+SET @embedding2 = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning');
+--enable_query_log
 
-  SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
-}
-
-if (!$OPENAI_API_KEY) {
-  --echo # Skipping live API test - OPENAI_API_KEY not set
-  --echo # To test with real API: export OPENAI_API_KEY=your-key
-}
+SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

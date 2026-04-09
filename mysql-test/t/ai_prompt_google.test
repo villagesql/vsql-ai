@@ -1,5 +1,10 @@
 # Test Google provider (Gemini models) for vsql_ai extension
 
+# Skip if GEMINI_API_KEY is not set
+if (!$GEMINI_API_KEY) {
+  skip Requires GEMINI_API_KEY environment variable;
+}
+
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
@@ -7,26 +12,19 @@ INSTALL EXTENSION vsql_ai;
 SELECT ai_prompt('google', 'gemini-2.5-flash', 'invalid_key_12345', 'Hello');
 SHOW WARNINGS;
 
-# Test with real API key if GEMINI_API_KEY environment variable is set
-if ($GEMINI_API_KEY) {
-  --echo # Testing with real Google API key (key hidden from output)
+# Test with real API key
+--echo # Running live API test
 
-  # Hide the API key from the result file
-  --disable_query_log
-  --eval SET @api_key = '$GEMINI_API_KEY'
-  --enable_query_log
+# Hide the API key from the result file
+--disable_query_log
+--eval SET @api_key = '$GEMINI_API_KEY'
+--enable_query_log
 
-  # Simple prompt test - Gemini should respond with SUCCESS
-  SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+# Simple prompt test - Gemini should respond with SUCCESS
+SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
-  # Verify we got a non-empty response
-  SELECT LENGTH(ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Reply with just: OK')) > 0 AS got_response;
-}
-
-if (!$GEMINI_API_KEY) {
-  --echo # Skipping live API test - GEMINI_API_KEY not set
-  --echo # To test with real API: export GEMINI_API_KEY=your-key
-}
+# Verify we got a non-empty response
+SELECT LENGTH(ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

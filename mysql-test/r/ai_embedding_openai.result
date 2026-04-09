@@ -7,7 +7,7 @@ Warning	3200	VDF error in function 'ai_embedding': Incorrect API key provided: i
 SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_embedding': Incorrect API key provided: invalid_*****2345. You can find your API key at https://platform.openai.com/account/api-keys.
-# Testing embeddings with real OpenAI API key (key hidden from output)
+# Running live API test
 SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 is_json_array
 1

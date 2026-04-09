@@ -7,7 +7,7 @@ Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
 SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
-# Testing with real Anthropic API key (key hidden from output)
+# Running live API test
 SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
 1
