@@ -7,7 +7,7 @@ Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not 
 SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not found, try pulling it first
-# Testing embeddings with local Ollama (model from OLLAMA_EMBED_MODEL env var)
+# Running live API test
 SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 is_json_array
 1

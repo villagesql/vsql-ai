@@ -1,5 +1,10 @@
 # Test local provider (Ollama) for vsql_ai extension
 
+# Skip if OLLAMA_MODEL is not set
+if (!$OLLAMA_MODEL) {
+  skip Requires OLLAMA_MODEL environment variable;
+}
+
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
@@ -7,25 +12,18 @@ INSTALL EXTENSION vsql_ai;
 SELECT ai_prompt('local', 'llama3.2', '', 'Hello');
 SHOW WARNINGS;
 
-# Test with real Ollama if running locally
-if ($OLLAMA_MODEL) {
-  --echo # Testing with local Ollama (model from OLLAMA_MODEL env var)
+# Test with real Ollama
+--echo # Running live API test
 
-  --disable_query_log
-  --eval SET @model = '$OLLAMA_MODEL'
-  --enable_query_log
+--disable_query_log
+--eval SET @model = '$OLLAMA_MODEL'
+--enable_query_log
 
-  # Simple prompt test - model should respond with SUCCESS
-  SELECT ai_prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+# Simple prompt test - model should respond with SUCCESS
+SELECT ai_prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
-  # Verify we got a non-empty response
-  SELECT LENGTH(ai_prompt('local', @model, '', 'Reply with just: OK')) > 0 AS got_response;
-}
-
-if (!$OLLAMA_MODEL) {
-  --echo # Skipping live API test - OLLAMA_MODEL not set
-  --echo # To test with real Ollama: export OLLAMA_MODEL=llama3.2
-}
+# Verify we got a non-empty response
+SELECT LENGTH(ai_prompt('local', @model, '', 'Reply with just: OK')) > 0 AS got_response;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

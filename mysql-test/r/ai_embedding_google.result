@@ -7,7 +7,7 @@ Warning	3200	VDF error in function 'ai_embedding': API key not valid. Please pas
 SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_embedding': API key not valid. Please pass a valid API key.
-# Testing embeddings with real Google API key (key hidden from output)
+# Running live API test
 SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 is_json_array
 1
