@@ -32,6 +32,10 @@ using json = nlohmann::json;
 
 namespace vsql_ai {
 
+// TODO(villagesql-beta): replace cast with VEF_RESULT_WARNING when we move to protocol V2
+static constexpr vef_return_value_type_t kResultWarning =
+    (vef_return_value_type_t)2;
+
 // =============================================================================
 // PROMPT Implementation
 // =============================================================================
@@ -54,25 +58,25 @@ void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Validate empty strings
   if (provider_name.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Provider name cannot be empty");
     return;
   }
 
   if (model.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Model name cannot be empty");
     return;
   }
 
   if (api_key.empty() && provider_name != "local") {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "API key cannot be empty");
     return;
   }
 
   if (prompt_text.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Prompt text cannot be empty");
     return;
   }
@@ -80,7 +84,7 @@ void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
   // Create provider
   auto provider = create_provider(provider_name);
   if (!provider) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     std::string error_msg = "Unknown provider: " + provider_name;
     strncpy(result->error_msg, error_msg.c_str(),
             sizeof(result->error_msg) - 1);
@@ -94,7 +98,7 @@ void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Handle errors
   if (!error.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     // Limit error message length to avoid buffer overflow
     if (error.length() > 255) {
       error = error.substr(0, 255);
@@ -140,25 +144,25 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Validate empty strings
   if (provider_name.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Provider name cannot be empty");
     return;
   }
 
   if (model.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Model name cannot be empty");
     return;
   }
 
   if (api_key.empty() && provider_name != "local") {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "API key cannot be empty");
     return;
   }
 
   if (text.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     strcpy(result->error_msg, "Text cannot be empty");
     return;
   }
@@ -166,7 +170,7 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
   // Create provider
   auto provider = create_provider(provider_name);
   if (!provider) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     std::string error_msg = "Unknown provider: " + provider_name;
     strncpy(result->error_msg, error_msg.c_str(),
             sizeof(result->error_msg) - 1);
@@ -180,7 +184,7 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Handle errors
   if (!error.empty()) {
-    result->type = VEF_RESULT_ERROR;
+    result->type = kResultWarning;
     // Limit error message length to avoid buffer overflow
     if (error.length() > 255) {
       error = error.substr(0, 255);
