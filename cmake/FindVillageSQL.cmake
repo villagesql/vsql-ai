@@ -144,7 +144,7 @@ endif()
 
 # Method 2: Use VillageSQL_SDK_DIR if explicitly set
 if(VillageSQL_SDK_DIR AND NOT _villagesql_found)
-  if(EXISTS "${VillageSQL_SDK_DIR}/include/villagesql/extension.h")
+  if(EXISTS "${VillageSQL_SDK_DIR}/include/villagesql/vsql.h")
     set(VillageSQL_PREFIX "${VillageSQL_SDK_DIR}")
     set(VillageSQL_INCLUDE_DIR "${VillageSQL_SDK_DIR}/include")
     set(VillageSQL_CXX_FLAGS "-I${VillageSQL_SDK_DIR}/include")
@@ -213,7 +213,7 @@ endif()
 if(NOT _villagesql_found)
   set(_default_prefix "$ENV{HOME}/.villagesql")
 
-  if(EXISTS "${_default_prefix}/include/villagesql/extension.h")
+  if(EXISTS "${_default_prefix}/include/villagesql/vsql.h")
     set(VillageSQL_PREFIX "${_default_prefix}")
     set(VillageSQL_INCLUDE_DIR "${_default_prefix}/include")
     set(VillageSQL_CXX_FLAGS "-I${_default_prefix}/include")
