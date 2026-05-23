@@ -157,7 +157,8 @@ void embedding_impl(StringArg provider_arg, StringArg model_arg,
     return;
   }
 
-  // Return result (JSON array of floats; truncates to buffer size automatically)
+  // Return result (JSON array of floats; truncates to buffer size
+  // automatically)
   out.set(embedding_json);
 }
 
@@ -171,18 +172,18 @@ VEF_GENERATE_ENTRY_POINTS(
     make_extension()
         .func(make_func<&vsql_ai::prompt_impl>("ai_prompt")
                   .returns(STRING)
-                  .param(STRING)  // provider
-                  .param(STRING)  // model
-                  .param(STRING)  // api_key
-                  .param(STRING)  // prompt
-                  .buffer_size(65535)  // Large buffer for AI responses
+                  .param(STRING)      // provider
+                  .param(STRING)      // model
+                  .param(STRING)      // api_key
+                  .param(STRING)      // prompt
+                  .buffer_size(65535) // Large buffer for AI responses
                   .build())
 
         .func(make_func<&vsql_ai::embedding_impl>("ai_embedding")
                   .returns(STRING)
-                  .param(STRING)  // provider
-                  .param(STRING)  // model
-                  .param(STRING)  // api_key
-                  .param(STRING)  // text
+                  .param(STRING) // provider
+                  .param(STRING) // model
+                  .param(STRING) // api_key
+                  .param(STRING) // text
                   .buffer_size(65535)
                   .build()))
