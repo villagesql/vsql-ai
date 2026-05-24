@@ -1,49 +1,86 @@
 name: test
-on: [pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  test-build:
-    name: Tests Build with ${{ matrix.vsql}}
-    strategy:
-      matrix:
-        vsql:
-          - "main"
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     steps:
-      - name: Checkout villagesql-server ${{ matrix.vsql }}
-        uses: actions/checkout@v6
-        with:
-          repository: villagesql/villagesql-server
-          ref: ${{ matrix.vsql }}
-          path: villagesql-server
-      - name: Checkout extension
-        uses: actions/checkout@v6
-        with:
-          path: extension
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Environment
+        run: sudo apt-get install -y --no-install-recommends cmake g++ make libssl-dev
+
+      - name: Download dev server
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repo: villagesql/villagesql-server
+          workflow: extension-compat.yml
+          workflow_conclusion: success
+          name: devserver-linux-x86_64
+          path: artifacts/
+
+      - name: Download SDK
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repo: villagesql/villagesql-server
+          workflow: extension-compat.yml
+          workflow_conclusion: success
+          name: sdk-linux-x86_64
+          path: artifacts/
+
+      - name: Extract dev server and SDK
         run: |
-          sudo apt update
-          sudo apt install -y cmake gcc make libtirpc-dev
-      - name: Build server
+          mkdir -p package sdk
+          tar xzf artifacts/villagesql-dev-server-*.tar.gz -C package
+          tar xzf artifacts/villagesql-extension-sdk-*.tar.gz -C sdk
+          echo "PACKAGE_DIR=$(echo "$PWD"/package/villagesql-dev-server-*)" >> "$GITHUB_ENV"
+          echo "SDK_DIR=$(echo "$PWD"/sdk/villagesql-extension-sdk-*)" >> "$GITHUB_ENV"
+
+      - name: Build extension VEB
         run: |
-          mkdir -p villagesql-server/build
-          cd villagesql-server/build
-          cmake .. \
-            -DWITH_ROUTER=OFF \
-            -DWITH_UNIT_TESTS=OFF \
-            -DWITHOUT_SERVER=ON
-          make -j$(nproc) sdk
-      - name: Build extension
+          NCORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo "4")
+          cmake -S . -B ext-build/ \
+            -DVillageSQL_SDK_DIR="$SDK_DIR" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build ext-build/ --parallel "$NCORES"
+          find ext-build/ -maxdepth 1 -name "*.veb" \
+            -exec cp {} "$PACKAGE_DIR/lib/veb/" \;
+
+      - name: Install extension test suite
         run: |
-          mkdir output
-          mkdir extension/build
-          cd extension/build
-          cmake .. \
-            -DVillageSQL_BUILD_DIR=../villagesql-server/build \
-            -DVillageSQL_VEB_INSTALL_DIR=${GITHUB_WORKSPACE}/output
-          make -j$(nproc) install
-      - name: Upload Artifacts
+          SUITE_DIR="$PACKAGE_DIR/mysql-test/suite/vsql-ai"
+          mkdir -p "$SUITE_DIR"
+          cp -r mysql-test/. "$SUITE_DIR/"
+
+      - name: Run MTR suite
+        run: |
+          "$PACKAGE_DIR/villagesql" mysql-test \
+            --suite=vsql-ai \
+            --parallel=auto \
+            --nounit-tests \
+            --force \
+            --retry=0
+
+      - name: Upload MTR results on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: extension-output-${{ matrix.vsql }}.zip
-          path: output/*.veb
+          name: mtr-results
+          path: ${{ env.PACKAGE_DIR }}/mysql-test/var/log/
+
+      - name: Upload VEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsql_ai.veb
+          path: ext-build/vsql_ai.veb
