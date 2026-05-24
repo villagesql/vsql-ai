@@ -57,58 +57,30 @@ make install
 - Variable naming: lowercase with underscores (e.g., `provider_name`)
 - Provider pattern: Abstract `AIProvider` base class with concrete implementations
 
-## VillageSQL Extension Framework (VEF) Pattern
+## VillageSQL Extension Framework (VEF) Pattern — Protocol V3
 
-VEF functions use a different pattern than traditional MySQL UDFs. Each function requires:
+This extension uses the Protocol V3 stable SDK (`<villagesql/vsql.h>`).
 
-1. **Implementation function** - The actual function logic
-2. **Registration** - Using VEF builder API to register the function
-
-Example pattern:
 ```cpp
-// 1. Implementation function
-void my_function_impl(vef_context_t* ctx,
-                     vef_invalue_t* arg1,
-                     vef_invalue_t* arg2,
-                     vef_vdf_result_t* result) {
-    // Validate NULL inputs
-    if (arg1->is_null || arg2->is_null) {
-        result->type = VEF_RESULT_NULL;
-        return;
-    }
+#include <villagesql/vsql.h>
+using namespace vsql;
 
-    // Extract arguments
-    std::string value1(arg1->str_value, arg1->str_len);
-    std::string value2(arg2->str_value, arg2->str_len);
-
-    // Function logic here
-    std::string response = do_something(value1, value2);
-
-    // Return result
-    result->type = VEF_RESULT_VALUE;
-    result->actual_len = response.length();
-    size_t copy_len = std::min(response.length(), result->max_str_len - 1);
-    memcpy(result->str_buf, response.c_str(), copy_len);
-    result->str_buf[copy_len] = '\0';
+void my_function_impl(StringArg arg1, StringArg arg2, StringResult out) {
+    if (arg1.is_null() || arg2.is_null()) { out.set_null(); return; }
+    std::string value1(arg1.value());
+    // ...
+    out.set(response);
 }
 
-// 2. Registration using VEF builder API
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension("my_extension", "1.0.0")
+    make_extension()
         .func(make_func<&my_function_impl>("my_function")
-                  .returns(STRING)
-                  .param(STRING)  // arg1
-                  .param(STRING)  // arg2
-                  .buffer_size(65535)
-                  .build())
+                  .returns(STRING).param(STRING).param(STRING)
+                  .buffer_size(65535).build())
 )
 ```
 
-**Important VEF Notes:**
-- Use `result->max_str_len` not `sizeof(result->str_buf)` for buffer size checks
-- `str_buf` is a pointer, not a fixed-size array
-- Always null-terminate string results
-- Set `result->actual_len` to the actual data length
+Use `out.set_null()` for NULL, `out.warning("msg")` for soft errors (Warning 3200 + NULL), `out.error("msg")` for hard errors. Extension name/version come from `manifest.json`; `make_extension()` takes no args in V3.
 
 ## Testing
 

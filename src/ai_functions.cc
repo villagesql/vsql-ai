@@ -14,9 +14,8 @@
  * along with this program; if not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <villagesql/extension.h>
+#include <villagesql/vsql.h>
 
-#include <cstring>
 #include <memory>
 #include <string>
 
@@ -24,71 +23,58 @@
 #include "http_client.h"
 #include "nlohmann/json.hpp"
 
-using namespace villagesql::extension_builder;
-using namespace villagesql::func_builder;
-using namespace villagesql::type_builder;
+using namespace vsql;
 
 using json = nlohmann::json;
 
 namespace vsql_ai {
 
-// TODO(villagesql-beta): replace cast with VEF_RESULT_WARNING when we move to protocol V2
-static constexpr vef_return_value_type_t kResultWarning =
-    (vef_return_value_type_t)2;
-
 // =============================================================================
 // PROMPT Implementation
 // =============================================================================
 
-void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
-                    vef_invalue_t* model_arg, vef_invalue_t* api_key_arg,
-                    vef_invalue_t* prompt_arg, vef_vdf_result_t* result) {
+void prompt_impl(StringArg provider_arg, StringArg model_arg,
+                 StringArg api_key_arg, StringArg prompt_arg,
+                 StringResult out) {
   // Validate NULL inputs
-  if (provider_arg->is_null || model_arg->is_null || api_key_arg->is_null ||
-      prompt_arg->is_null) {
-    result->type = VEF_RESULT_NULL;
+  if (provider_arg.is_null() || model_arg.is_null() || api_key_arg.is_null() ||
+      prompt_arg.is_null()) {
+    out.set_null();
     return;
   }
 
   // Extract arguments
-  std::string provider_name(provider_arg->str_value, provider_arg->str_len);
-  std::string model(model_arg->str_value, model_arg->str_len);
-  std::string api_key(api_key_arg->str_value, api_key_arg->str_len);
-  std::string prompt_text(prompt_arg->str_value, prompt_arg->str_len);
+  std::string provider_name(provider_arg.value());
+  std::string model(model_arg.value());
+  std::string api_key(api_key_arg.value());
+  std::string prompt_text(prompt_arg.value());
 
   // Validate empty strings
   if (provider_name.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Provider name cannot be empty");
+    out.warning("Provider name cannot be empty");
     return;
   }
 
   if (model.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Model name cannot be empty");
+    out.warning("Model name cannot be empty");
     return;
   }
 
   if (api_key.empty() && provider_name != "local") {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "API key cannot be empty");
+    out.warning("API key cannot be empty");
     return;
   }
 
   if (prompt_text.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Prompt text cannot be empty");
+    out.warning("Prompt text cannot be empty");
     return;
   }
 
   // Create provider
   auto provider = create_provider(provider_name);
   if (!provider) {
-    result->type = kResultWarning;
     std::string error_msg = "Unknown provider: " + provider_name;
-    strncpy(result->error_msg, error_msg.c_str(),
-            sizeof(result->error_msg) - 1);
-    result->error_msg[sizeof(result->error_msg) - 1] = '\0';
+    out.warning(error_msg);
     return;
   }
 
@@ -98,83 +84,63 @@ void prompt_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Handle errors
   if (!error.empty()) {
-    result->type = kResultWarning;
-    // Limit error message length to avoid buffer overflow
     if (error.length() > 255) {
       error = error.substr(0, 255);
     }
-    strcpy(result->error_msg, error.c_str());
+    out.warning(error);
     return;
   }
 
-  // Return result
-  result->type = VEF_RESULT_VALUE;
-  result->actual_len = response.length();
-
-  // Copy response to buffer (truncate if necessary)
-  size_t copy_len = std::min(response.length(), result->max_str_len - 1);
-  memcpy(result->str_buf, response.c_str(), copy_len);
-  result->str_buf[copy_len] = '\0';
-
-  // If response was truncated, note it in error but still return value
-  if (response.length() > result->max_str_len - 1) {
-    result->actual_len = copy_len;
-  }
+  // Return result (truncates to buffer size automatically)
+  out.set(response);
 }
 
 // =============================================================================
 // EMBEDDING Implementation
 // =============================================================================
 
-void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
-                       vef_invalue_t* model_arg, vef_invalue_t* api_key_arg,
-                       vef_invalue_t* text_arg, vef_vdf_result_t* result) {
+void embedding_impl(StringArg provider_arg, StringArg model_arg,
+                    StringArg api_key_arg, StringArg text_arg,
+                    StringResult out) {
   // Validate NULL inputs
-  if (provider_arg->is_null || model_arg->is_null || api_key_arg->is_null ||
-      text_arg->is_null) {
-    result->type = VEF_RESULT_NULL;
+  if (provider_arg.is_null() || model_arg.is_null() || api_key_arg.is_null() ||
+      text_arg.is_null()) {
+    out.set_null();
     return;
   }
 
   // Extract arguments
-  std::string provider_name(provider_arg->str_value, provider_arg->str_len);
-  std::string model(model_arg->str_value, model_arg->str_len);
-  std::string api_key(api_key_arg->str_value, api_key_arg->str_len);
-  std::string text(text_arg->str_value, text_arg->str_len);
+  std::string provider_name(provider_arg.value());
+  std::string model(model_arg.value());
+  std::string api_key(api_key_arg.value());
+  std::string text(text_arg.value());
 
   // Validate empty strings
   if (provider_name.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Provider name cannot be empty");
+    out.warning("Provider name cannot be empty");
     return;
   }
 
   if (model.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Model name cannot be empty");
+    out.warning("Model name cannot be empty");
     return;
   }
 
   if (api_key.empty() && provider_name != "local") {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "API key cannot be empty");
+    out.warning("API key cannot be empty");
     return;
   }
 
   if (text.empty()) {
-    result->type = kResultWarning;
-    strcpy(result->error_msg, "Text cannot be empty");
+    out.warning("Text cannot be empty");
     return;
   }
 
   // Create provider
   auto provider = create_provider(provider_name);
   if (!provider) {
-    result->type = kResultWarning;
     std::string error_msg = "Unknown provider: " + provider_name;
-    strncpy(result->error_msg, error_msg.c_str(),
-            sizeof(result->error_msg) - 1);
-    result->error_msg[sizeof(result->error_msg) - 1] = '\0';
+    out.warning(error_msg);
     return;
   }
 
@@ -184,29 +150,16 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 
   // Handle errors
   if (!error.empty()) {
-    result->type = kResultWarning;
-    // Limit error message length to avoid buffer overflow
     if (error.length() > 255) {
       error = error.substr(0, 255);
     }
-    strcpy(result->error_msg, error.c_str());
+    out.warning(error);
     return;
   }
 
-  // Return result (JSON array of floats)
-  result->type = VEF_RESULT_VALUE;
-  result->actual_len = embedding_json.length();
-
-  // Copy embedding JSON to buffer (truncate if necessary)
-  size_t copy_len =
-      std::min(embedding_json.length(), result->max_str_len - 1);
-  memcpy(result->str_buf, embedding_json.c_str(), copy_len);
-  result->str_buf[copy_len] = '\0';
-
-  // If response was truncated, note it
-  if (embedding_json.length() > result->max_str_len - 1) {
-    result->actual_len = copy_len;
-  }
+  // Return result (JSON array of floats; truncates to buffer size
+  // automatically)
+  out.set(embedding_json);
 }
 
 }  // namespace vsql_ai
@@ -216,21 +169,21 @@ void embedding_impl(vef_context_t* ctx, vef_invalue_t* provider_arg,
 // =============================================================================
 
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension("vsql_ai", "0.0.3")
+    make_extension()
         .func(make_func<&vsql_ai::prompt_impl>("ai_prompt")
                   .returns(STRING)
-                  .param(STRING)  // provider
-                  .param(STRING)  // model
-                  .param(STRING)  // api_key
-                  .param(STRING)  // prompt
-                  .buffer_size(65535)  // Large buffer for AI responses
+                  .param(STRING)      // provider
+                  .param(STRING)      // model
+                  .param(STRING)      // api_key
+                  .param(STRING)      // prompt
+                  .buffer_size(65535) // Large buffer for AI responses
                   .build())
 
         .func(make_func<&vsql_ai::embedding_impl>("ai_embedding")
                   .returns(STRING)
-                  .param(STRING)  // provider
-                  .param(STRING)  // model
-                  .param(STRING)  // api_key
-                  .param(STRING)  // text
+                  .param(STRING) // provider
+                  .param(STRING) // model
+                  .param(STRING) // api_key
+                  .param(STRING) // text
                   .buffer_size(65535)
                   .build()))
