@@ -15,7 +15,7 @@ SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_
 has_result
 0
 Warnings:
-Warning	3200	VDF error in function 'ai_prompt': Unknown
+Warning	3200	VDF error in function 'ai_prompt': Unknown provider: invalid_provider
 SELECT ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
 empty_provider_result
 0
@@ -40,5 +40,5 @@ SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NOT NULL AS e
 embed_not_implemented
 0
 Warnings:
-Warning	3200	VDF error in function 'ai_embedding': Unknown
+Warning	3200	VDF error in function 'ai_embedding': Unknown provider: unknown_provider
 UNINSTALL EXTENSION vsql_ai;
