@@ -499,6 +499,13 @@ std::string OpenAIProvider::embed(const std::string& model,
 // LocalProvider Implementation (Ollama on 127.0.0.1:11434)
 // =============================================================================
 
+// Local inference is not rate limited but can be slow: large models (e.g.
+// 12B+ parameters) may need minutes to load and generate a full
+// non-streaming response, so allow far longer than the cloud providers.
+namespace {
+constexpr int kLocalTimeoutSeconds = 300;
+}
+
 LocalProvider::LocalProvider() {}
 
 LocalProvider::~LocalProvider() {}
@@ -574,7 +581,7 @@ std::string LocalProvider::prompt(const std::string& model,
   HttpClient client;
   auto response =
       client.post(get_endpoint(), "/v1/chat/completions", request_body,
-                  headers, 30);
+                  headers, kLocalTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -612,8 +619,8 @@ std::string LocalProvider::embed(const std::string& model,
 
   // Make HTTP request
   HttpClient client;
-  auto response =
-      client.post(get_endpoint(), "/v1/embeddings", request_body, headers, 30);
+  auto response = client.post(get_endpoint(), "/v1/embeddings", request_body,
+                              headers, kLocalTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
