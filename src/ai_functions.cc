@@ -29,6 +29,14 @@ using json = nlohmann::json;
 
 namespace vsql_ai {
 
+namespace {
+// The local provider needs no API key; it may carry a port suffix
+// ("local:<port>").
+bool is_local_provider(const std::string& provider_name) {
+  return provider_name == "local" || provider_name.rfind("local:", 0) == 0;
+}
+}  // namespace
+
 // =============================================================================
 // PROMPT Implementation
 // =============================================================================
@@ -60,7 +68,7 @@ void prompt_impl(StringArg provider_arg, StringArg model_arg,
     return;
   }
 
-  if (api_key.empty() && provider_name != "local") {
+  if (api_key.empty() && !is_local_provider(provider_name)) {
     out.warning("API key cannot be empty");
     return;
   }
@@ -126,7 +134,7 @@ void embedding_impl(StringArg provider_arg, StringArg model_arg,
     return;
   }
 
-  if (api_key.empty() && provider_name != "local") {
+  if (api_key.empty() && !is_local_provider(provider_name)) {
     out.warning("API key cannot be empty");
     return;
   }

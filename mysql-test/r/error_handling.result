@@ -16,6 +16,26 @@ has_result
 0
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Unknown provider: invalid_provider
+SELECT ai_prompt('local:abc', 'model', '', 'test') IS NOT NULL AS bad_port_text;
+bad_port_text
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Unknown provider: local:abc
+SELECT ai_prompt('local:99999', 'model', '', 'test') IS NOT NULL AS bad_port_range;
+bad_port_range
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Unknown provider: local:99999
+SELECT ai_prompt('local:0', 'model', '', 'test') IS NOT NULL AS bad_port_zero;
+bad_port_zero
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Unknown provider: local:0
+SELECT ai_prompt('local:', 'model', '', 'test') IS NOT NULL AS bad_port_empty;
+bad_port_empty
+0
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Unknown provider: local:
 SELECT ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
 empty_provider_result
 0

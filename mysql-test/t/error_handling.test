@@ -12,6 +12,12 @@ SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt;
 # Test invalid provider - returns error message (not NULL)
 SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_result;
 
+# Test invalid local port syntax - rejected as unknown provider
+SELECT ai_prompt('local:abc', 'model', '', 'test') IS NOT NULL AS bad_port_text;
+SELECT ai_prompt('local:99999', 'model', '', 'test') IS NOT NULL AS bad_port_range;
+SELECT ai_prompt('local:0', 'model', '', 'test') IS NOT NULL AS bad_port_zero;
+SELECT ai_prompt('local:', 'model', '', 'test') IS NOT NULL AS bad_port_empty;
+
 # Test empty strings - returns error message (not NULL)
 SELECT ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
 SELECT ai_prompt('anthropic', '', 'key', 'test') IS NOT NULL AS empty_model_result;

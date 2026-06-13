@@ -109,10 +109,13 @@ class OpenAIProvider : public AIProvider {
                              std::string* error) const;
 };
 
-// Local provider implementation (Ollama on 127.0.0.1:11434)
+// Local provider implementation (Ollama on 127.0.0.1, port 11434 by
+// default; configurable via the "local:<port>" provider syntax)
 class LocalProvider : public AIProvider {
  public:
-  LocalProvider();
+  static constexpr int kDefaultPort = 11434;
+
+  explicit LocalProvider(int port = kDefaultPort);
   ~LocalProvider() override;
 
   std::string prompt(const std::string& model, const std::string& api_key,
@@ -129,9 +132,12 @@ class LocalProvider : public AIProvider {
                                   const std::string& prompt) const;
   std::string parse_response(const std::string& response_json,
                              std::string* error) const;
+
+  int port_;
 };
 
-// Factory function to create provider by name
+// Factory function to create provider by name. The "local" provider accepts
+// an optional port suffix ("local:<port>") to override the default 11434.
 std::unique_ptr<AIProvider> create_provider(const std::string& provider_name);
 
 }  // namespace vsql_ai

@@ -517,12 +517,12 @@ namespace {
 constexpr int kLocalTimeoutSeconds = 300;
 }
 
-LocalProvider::LocalProvider() {}
+LocalProvider::LocalProvider(int port) : port_(port) {}
 
 LocalProvider::~LocalProvider() {}
 
 std::string LocalProvider::get_endpoint() const {
-  return "http://127.0.0.1:11434";
+  return "http://127.0.0.1:" + std::to_string(port_);
 }
 
 std::map<std::string, std::string> LocalProvider::get_headers() const {
@@ -720,6 +720,24 @@ std::unique_ptr<AIProvider> create_provider(const std::string& provider_name) {
 
   if (provider_name == "local") {
     return std::make_unique<LocalProvider>();
+  }
+
+  // "local:<port>" overrides the default Ollama port
+  if (provider_name.rfind("local:", 0) == 0) {
+    const std::string port_str = provider_name.substr(6);
+    if (port_str.empty() ||
+        port_str.find_first_not_of("0123456789") != std::string::npos) {
+      return nullptr;
+    }
+    try {
+      int port = std::stoi(port_str);
+      if (port < 1 || port > 65535) {
+        return nullptr;
+      }
+      return std::make_unique<LocalProvider>(port);
+    } catch (const std::exception&) {
+      return nullptr;
+    }
   }
 
   // Unknown provider
