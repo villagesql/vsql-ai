@@ -531,9 +531,14 @@ std::map<std::string, std::string> LocalProvider::get_headers() const {
 
 std::string LocalProvider::build_request_body(
     const std::string& model, const std::string& prompt) const {
+  // Disable thinking: reasoning traces are discarded by parse_response, so
+  // generating them only wastes inference time. Ollama ignores "think" for
+  // models without thinking support.
   json request = {{"model", model},
                   {"messages", json::array({json::object(
-                                   {{"role", "user"}, {"content", prompt}})})}};
+                                   {{"role", "user"}, {"content", prompt}})})},
+                  {"stream", false},
+                  {"think", false}};
 
   return request.dump();
 }
@@ -588,11 +593,11 @@ std::string LocalProvider::prompt(const std::string& model,
   std::string request_body = build_request_body(model, prompt_text);
   auto headers = get_headers();
 
-  // Make HTTP request using OpenAI-compatible endpoint
+  // Use Ollama's native chat endpoint rather than the OpenAI-compatible
+  // one so thinking can be disabled via the "think" request option.
   HttpClient client;
-  auto response =
-      client.post(get_endpoint(), "/v1/chat/completions", request_body,
-                  headers, kLocalTimeoutSeconds);
+  auto response = client.post(get_endpoint(), "/api/chat", request_body,
+                              headers, kLocalTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
