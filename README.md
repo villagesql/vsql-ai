@@ -182,10 +182,14 @@ FROM documents;
 Currently supported:
 
 #### Anthropic (provider: `anthropic`)
-Claude 4.5 models:
+Claude models:
 - **Claude Sonnet 4.5**: `claude-sonnet-4-5-20250929` (recommended - best for complex agents and coding)
 - **Claude Haiku 4.5**: `claude-haiku-4-5-20251001` (fastest with near-frontier intelligence)
 - **Claude Opus 4.5**: `claude-opus-4-5-20251101` (maximum capability and intelligence)
+- **Claude Sonnet 4.6**: `claude-sonnet-4-6`
+- **Claude Opus 4.7**: `claude-opus-4-7`
+- **Claude Opus 4.8**: `claude-opus-4-8`
+- **Claude Fable 5**: `claude-fable-5`
 
 #### Google (provider: `google`)
 **Generative:**

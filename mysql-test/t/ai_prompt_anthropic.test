@@ -26,5 +26,9 @@ SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Say only 
 # Verify we got a non-empty response
 SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 
+# Extended thinking model test - claude-fable-5 returns a "thinking" content
+# block before the "text" block; verify the text is still extracted
+SELECT ai_prompt('anthropic', 'claude-fable-5', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS fable_contains_success;
+
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

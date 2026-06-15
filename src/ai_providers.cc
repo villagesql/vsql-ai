@@ -66,12 +66,23 @@ std::string AnthropicProvider::parse_response(const std::string& response_json,
       return "";
     }
 
-    // Extract response text
+    // Extract response text. Models with extended thinking (e.g.
+    // claude-fable-5) return thinking blocks before the text block, so scan
+    // the content array for "text" blocks rather than only checking the
+    // first element. Concatenate in case the response contains multiple
+    // text blocks.
     if (response.contains("content") && response["content"].is_array() &&
         !response["content"].empty()) {
-      const auto& first_content = response["content"][0];
-      if (first_content.contains("text")) {
-        return first_content["text"].get<std::string>();
+      std::string result;
+      bool found_text = false;
+      for (const auto& block : response["content"]) {
+        if (block.contains("text") && block["text"].is_string()) {
+          result += block["text"].get<std::string>();
+          found_text = true;
+        }
+      }
+      if (found_text) {
+        return result;
       }
     }
 

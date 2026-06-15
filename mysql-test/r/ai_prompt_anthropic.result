@@ -14,4 +14,7 @@ contains_success
 SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 got_response
 1
+SELECT ai_prompt('anthropic', 'claude-fable-5', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS fable_contains_success;
+fable_contains_success
+1
 UNINSTALL EXTENSION vsql_ai;
