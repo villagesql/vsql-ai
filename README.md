@@ -155,7 +155,23 @@ SELECT ai_embedding(
 -- Returns: [0.02646778, 0.019067757, -0.05332306, ...]
 ```
 
-#### Using Embeddings with Table Data
+#### Storing Embeddings in a JSON Column
+
+`ai_embedding()` returns the vector as JSON text, but the result carries the
+binary character set. MySQL's JSON functions and `JSON` columns reject it
+directly:
+
+```sql
+-- This fails:
+-- ERROR 3144 (22032): Cannot create a JSON value from a string with
+-- CHARACTER SET 'binary'
+INSERT INTO documents (id, content, embedding)
+VALUES (1, 'Machine learning', ai_embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning'));
+```
+
+Wrap the call in `CONVERT(... USING utf8mb4)` (or `CAST(... AS CHAR)`) whenever
+the value flows into a `JSON` column or a JSON function:
+
 ```sql
 -- Create a table to store documents and their embeddings
 CREATE TABLE documents (
@@ -168,14 +184,16 @@ CREATE TABLE documents (
 SET @api_key = 'your-google-api-key';
 INSERT INTO documents (id, content, embedding)
 VALUES (1, 'Machine learning is a subset of artificial intelligence',
-        ai_embedding('google', 'gemini-embedding-001', @api_key,
-                            'Machine learning is a subset of artificial intelligence'));
+        CONVERT(ai_embedding('google', 'gemini-embedding-001', @api_key,
+                             'Machine learning is a subset of artificial intelligence')
+                USING utf8mb4));
 
--- Query to generate embeddings for multiple documents
-SELECT id, content,
-       ai_embedding('google', 'gemini-embedding-001', @api_key, content) AS embedding
-FROM documents;
+-- Inspect what was stored
+SELECT id, JSON_LENGTH(embedding) AS dimensions FROM documents;
 ```
+
+Plain `TEXT` columns need no conversion — it is only JSON parsing that is
+affected.
 
 ### Supported Providers
 
@@ -305,7 +323,7 @@ SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascin
 ### Network Security
 
 - All API requests use HTTPS with SSL certificate verification
-- Connections timeout after 30 seconds by default
+- Cloud provider connections timeout after 30 seconds; the local (Ollama) provider allows 300 seconds, since local models can be slow to load
 - Failed connections return clear error messages
 
 ## Performance Considerations
@@ -327,6 +345,36 @@ AI providers impose rate limits on API requests:
 - **Anthropic**: Varies by plan (typically 50+ requests/minute)
 - Error messages will indicate rate limit issues
 - Consider spacing out bulk operations
+
+## Known Limitations
+
+**Each call blocks the connection.** Both functions perform a synchronous
+outbound HTTP request from inside the SQL function, holding the server thread
+until the provider responds — up to 30 seconds for cloud providers, 300 for
+local Ollama. Cost scales linearly with row count: `SELECT ai_prompt(...) FROM t`
+issues one request per row, serially. There is no batching or asynchronous
+execution. Materialize results into a column rather than recomputing them per
+query, and raise `max_execution_time` for multi-row statements.
+
+**Embedding output needs an explicit conversion for JSON use.** The returned
+string carries the binary character set, so `JSON_VALID()`, `JSON_LENGTH()`,
+and inserts into a `JSON` column all reject it until you wrap the call in
+`CONVERT(... USING utf8mb4)`. See
+[Storing Embeddings in a JSON Column](#storing-embeddings-in-a-json-column).
+
+**No embeddings from Anthropic.** `ai_embedding('anthropic', ...)` returns a
+warning and NULL — Anthropic publishes no embeddings endpoint. Use `google`,
+`openai`, or `local`.
+
+**Warning text is truncated.** Provider errors are cut to 255 bytes (response
+body excerpts to 100) before being surfaced as a warning. Truncation is
+UTF-8-aware, so a cut never produces invalid text, but long upstream errors
+are not shown in full.
+
+**Errors surface as warnings, not errors.** Every failure path returns SQL
+NULL plus `Warning 3200`. A statement that calls these functions will not
+abort on a provider failure — check for NULL, and inspect `SHOW WARNINGS` to
+see why.
 
 ## Testing
 

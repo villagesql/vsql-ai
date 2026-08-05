@@ -23,13 +23,62 @@ using json = nlohmann::json;
 
 namespace vsql_ai {
 
+// Bytes of an unrecognised response body quoted back in an error message.
+constexpr size_t kMaxErrorBodyBytes = 100;
+
+std::string_view truncate_utf8_view(std::string_view text, size_t max_bytes) {
+  if (text.size() <= max_bytes) {
+    return text;
+  }
+
+  // Walk back off any continuation bytes (10xxxxxx) so the cut lands on a
+  // code point boundary.
+  size_t cut = max_bytes;
+  while (cut > 0 &&
+         (static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80) {
+    --cut;
+  }
+
+  return text.substr(0, cut);
+}
+
+std::string truncate_utf8(const std::string& text, size_t max_bytes) {
+  return std::string(truncate_utf8_view(text, max_bytes));
+}
+
+namespace {
+
+// Turn an upstream `error` member into text. The shape is not guaranteed:
+// Anthropic, Google and OpenAI nest {"error": {"message": "..."}}, Ollama also
+// sends {"error": "..."}, and any of them can send a "message" that is not a
+// string (an object, an array, a number) — .get<std::string>() would throw
+// type_error.302 on those, which the caller reports as a bogus "JSON parse
+// error". Only a string is read as text; anything else is dumped verbatim so
+// the message still carries what the provider said.
+//
+// dump() uses the replacing error handler because the error path must not
+// throw: a body with invalid UTF-8 would otherwise mask the real failure.
+std::string extract_error_message(const json& error_node) {
+  if (error_node.is_string()) {
+    return error_node.get<std::string>();
+  }
+
+  if (error_node.is_object()) {
+    auto message = error_node.find("message");
+    if (message != error_node.end() && message->is_string()) {
+      return message->get<std::string>();
+    }
+  }
+
+  return error_node.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+}  // namespace
+
 // =============================================================================
 // AnthropicProvider Implementation
 // =============================================================================
 
-AnthropicProvider::AnthropicProvider() {}
-
-AnthropicProvider::~AnthropicProvider() {}
 
 std::string AnthropicProvider::get_endpoint() const {
   return "https://api.anthropic.com";
@@ -58,11 +107,7 @@ std::string AnthropicProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -71,8 +116,7 @@ std::string AnthropicProvider::parse_response(const std::string& response_json,
     // the content array for "text" blocks rather than only checking the
     // first element. Concatenate in case the response contains multiple
     // text blocks.
-    if (response.contains("content") && response["content"].is_array() &&
-        !response["content"].empty()) {
+    if (response.contains("content") && response["content"].is_array()) {
       std::string result;
       bool found_text = false;
       for (const auto& block : response["content"]) {
@@ -104,8 +148,7 @@ std::string AnthropicProvider::prompt(const std::string& model,
   auto headers = get_headers(api_key);
 
   // Make HTTP request
-  HttpClient client;
-  auto response = client.post(get_endpoint(), "/v1/messages", request_body,
+  auto response = HttpClient::post(get_endpoint(), "/v1/messages", request_body,
                               headers, 30);
 
   // Check for network errors
@@ -125,7 +168,7 @@ std::string AnthropicProvider::prompt(const std::string& model,
       *error = api_error;
     } else {
       *error = "HTTP " + std::to_string(response.status_code) +
-               " - " + response.body.substr(0, 100);
+               " - " + truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -147,11 +190,8 @@ std::string AnthropicProvider::embed(const std::string& model,
 // GoogleProvider Implementation
 // =============================================================================
 
-GoogleProvider::GoogleProvider() {}
 
-GoogleProvider::~GoogleProvider() {}
-
-std::string GoogleProvider::get_endpoint(const std::string& model) const {
+std::string GoogleProvider::get_endpoint() const {
   return "https://generativelanguage.googleapis.com";
 }
 
@@ -177,11 +217,7 @@ std::string GoogleProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -194,7 +230,7 @@ std::string GoogleProvider::parse_response(const std::string& response_json,
         if (content.contains("parts") && content["parts"].is_array() &&
             !content["parts"].empty()) {
           const auto& first_part = content["parts"][0];
-          if (first_part.contains("text")) {
+          if (first_part.contains("text") && first_part["text"].is_string()) {
             return first_part["text"].get<std::string>();
           }
         }
@@ -222,9 +258,8 @@ std::string GoogleProvider::prompt(const std::string& model,
   std::string path = "/v1beta/models/" + model + ":generateContent";
 
   // Make HTTP request
-  HttpClient client;
   auto response =
-      client.post(get_endpoint(model), path, request_body, headers, 30);
+      HttpClient::post(get_endpoint(), path, request_body, headers, 30);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -242,7 +277,7 @@ std::string GoogleProvider::prompt(const std::string& model,
       *error = api_error;
     } else {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -265,8 +300,7 @@ std::string GoogleProvider::embed(const std::string& model,
   std::string path = "/v1beta/models/" + model + ":embedContent";
 
   // Make HTTP request
-  HttpClient client;
-  auto response = client.post(get_endpoint(model), path, request_body, headers, 30);
+  auto response = HttpClient::post(get_endpoint(), path, request_body, headers, 30);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -280,18 +314,14 @@ std::string GoogleProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
-                 response.body.substr(0, 100);
+                 truncate_utf8(response.body, kMaxErrorBodyBytes);
       }
     } catch (const json::exception& e) {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -302,25 +332,26 @@ std::string GoogleProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 
-    // Try new format first (gemini-embedding-2-preview)
-    if (response_json.contains("embeddings") &&
-        response_json["embeddings"].is_array() &&
-        !response_json["embeddings"].empty()) {
-      return response_json["embeddings"][0]["values"].dump();
+    // Try new format first (gemini-embedding-2-preview). Bind through a const
+    // reference: on a non-const json, operator[] inserts a null member for a
+    // missing key, which would dump as the string "null" and be returned as a
+    // successful embedding.
+    const json& const_response = response_json;
+    if (const_response.contains("embeddings") &&
+        const_response["embeddings"].is_array() &&
+        !const_response["embeddings"].empty() &&
+        const_response["embeddings"][0].contains("values")) {
+      return const_response["embeddings"][0]["values"].dump();
     }
 
     // Fall back to old format (gemini-embedding-001)
-    if (response_json.contains("embedding") &&
-        response_json["embedding"].contains("values")) {
-      return response_json["embedding"]["values"].dump();
+    if (const_response.contains("embedding") &&
+        const_response["embedding"].contains("values")) {
+      return const_response["embedding"]["values"].dump();
     }
 
     *error = "Invalid response format: missing embedding values";
@@ -336,9 +367,6 @@ std::string GoogleProvider::embed(const std::string& model,
 // OpenAIProvider Implementation
 // =============================================================================
 
-OpenAIProvider::OpenAIProvider() {}
-
-OpenAIProvider::~OpenAIProvider() {}
 
 std::string OpenAIProvider::get_endpoint() const {
   return "https://api.openai.com";
@@ -365,11 +393,7 @@ std::string OpenAIProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -377,8 +401,11 @@ std::string OpenAIProvider::parse_response(const std::string& response_json,
     if (response.contains("choices") && response["choices"].is_array() &&
         !response["choices"].empty()) {
       const auto& first_choice = response["choices"][0];
+      // content is null on refusals and tool-call responses, so check the
+      // type rather than only its presence.
       if (first_choice.contains("message") &&
-          first_choice["message"].contains("content")) {
+          first_choice["message"].contains("content") &&
+          first_choice["message"]["content"].is_string()) {
         return first_choice["message"]["content"].get<std::string>();
       }
     }
@@ -401,9 +428,8 @@ std::string OpenAIProvider::prompt(const std::string& model,
   auto headers = get_headers(api_key);
 
   // Make HTTP request
-  HttpClient client;
   auto response =
-      client.post(get_endpoint(), "/v1/chat/completions", request_body,
+      HttpClient::post(get_endpoint(), "/v1/chat/completions", request_body,
                   headers, 30);
 
   // Check for network errors
@@ -422,7 +448,7 @@ std::string OpenAIProvider::prompt(const std::string& model,
       *error = api_error;
     } else {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -442,9 +468,8 @@ std::string OpenAIProvider::embed(const std::string& model,
   auto headers = get_headers(api_key);
 
   // Make HTTP request
-  HttpClient client;
   auto response =
-      client.post(get_endpoint(), "/v1/embeddings", request_body, headers, 30);
+      HttpClient::post(get_endpoint(), "/v1/embeddings", request_body, headers, 30);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -458,18 +483,14 @@ std::string OpenAIProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
-                 response.body.substr(0, 100);
+                 truncate_utf8(response.body, kMaxErrorBodyBytes);
       }
     } catch (const json::exception& e) {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -480,11 +501,7 @@ std::string OpenAIProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 
@@ -517,9 +534,6 @@ namespace {
 constexpr int kLocalTimeoutSeconds = 300;
 }
 
-LocalProvider::LocalProvider() {}
-
-LocalProvider::~LocalProvider() {}
 
 std::string LocalProvider::get_endpoint() const {
   return "http://127.0.0.1:11434";
@@ -550,13 +564,7 @@ std::string LocalProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].is_string()) {
-        *error = response["error"].get<std::string>();
-      } else if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -564,15 +572,19 @@ std::string LocalProvider::parse_response(const std::string& response_json,
     if (response.contains("choices") && response["choices"].is_array() &&
         !response["choices"].empty()) {
       const auto& first_choice = response["choices"][0];
+      // content is null on refusals and tool-call responses, so check the
+      // type rather than only its presence.
       if (first_choice.contains("message") &&
-          first_choice["message"].contains("content")) {
+          first_choice["message"].contains("content") &&
+          first_choice["message"]["content"].is_string()) {
         return first_choice["message"]["content"].get<std::string>();
       }
     }
 
     // Fall back to Ollama native format: message.content
     if (response.contains("message") &&
-        response["message"].contains("content")) {
+        response["message"].contains("content") &&
+        response["message"]["content"].is_string()) {
       return response["message"]["content"].get<std::string>();
     }
 
@@ -595,8 +607,7 @@ std::string LocalProvider::prompt(const std::string& model,
 
   // Use Ollama's native chat endpoint rather than the OpenAI-compatible
   // one so thinking can be disabled via the "think" request option.
-  HttpClient client;
-  auto response = client.post(get_endpoint(), "/api/chat", request_body,
+  auto response = HttpClient::post(get_endpoint(), "/api/chat", request_body,
                               headers, kLocalTimeoutSeconds);
 
   // Check for network errors
@@ -614,7 +625,7 @@ std::string LocalProvider::prompt(const std::string& model,
       *error = api_error;
     } else {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -634,8 +645,7 @@ std::string LocalProvider::embed(const std::string& model,
   auto headers = get_headers();
 
   // Make HTTP request
-  HttpClient client;
-  auto response = client.post(get_endpoint(), "/v1/embeddings", request_body,
+  auto response = HttpClient::post(get_endpoint(), "/v1/embeddings", request_body,
                               headers, kLocalTimeoutSeconds);
 
   // Check for network errors
@@ -649,20 +659,14 @@ std::string LocalProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].is_string()) {
-          *error = error_response["error"].get<std::string>();
-        } else if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
-                 response.body.substr(0, 100);
+                 truncate_utf8(response.body, kMaxErrorBodyBytes);
       }
     } catch (const json::exception& e) {
       *error = "HTTP " + std::to_string(response.status_code) + " - " +
-               response.body.substr(0, 100);
+               truncate_utf8(response.body, kMaxErrorBodyBytes);
     }
     return "";
   }
@@ -673,13 +677,7 @@ std::string LocalProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].is_string()) {
-        *error = response_json["error"].get<std::string>();
-      } else if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 

@@ -3,23 +3,32 @@
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# Test NULL handling - should return NULL
-SELECT ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider;
-SELECT ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model;
-SELECT ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key;
-SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt;
+# A NULL in any argument position yields NULL with no warning
+SELECT ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider_is_null;
+SELECT ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model_is_null;
+SELECT ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key_is_null;
+SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt_is_null;
 
-# Test invalid provider - returns error message (not NULL)
-SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_result;
+# A rejected argument yields NULL and raises warning 3200 describing why
+SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NULL AS unknown_provider_is_null;
 
-# Test empty strings - returns error message (not NULL)
-SELECT ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
-SELECT ai_prompt('anthropic', '', 'key', 'test') IS NOT NULL AS empty_model_result;
-SELECT ai_prompt('anthropic', 'model', '', 'test') IS NOT NULL AS empty_key_result;
-SELECT ai_prompt('anthropic', 'model', 'key', '') IS NOT NULL AS empty_prompt_result;
+# Empty arguments are rejected the same way
+SELECT ai_prompt('', 'model', 'key', 'test') IS NULL AS empty_provider_is_null;
+SELECT ai_prompt('anthropic', '', 'key', 'test') IS NULL AS empty_model_is_null;
+SELECT ai_prompt('anthropic', 'model', '', 'test') IS NULL AS empty_key_is_null;
+SELECT ai_prompt('anthropic', 'model', 'key', '') IS NULL AS empty_prompt_is_null;
+SELECT ai_embedding('google', 'model', 'key', '') IS NULL AS empty_text_is_null;
 
-# Test embedding stub - returns error message
-SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
+# ai_embedding rejects an unknown provider the same way ai_prompt does
+SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NULL AS unknown_provider_embed_is_null;
+
+# Input that is not valid UTF-8 cannot be serialized into a JSON request body.
+# The resulting exception must be contained and reported as a warning rather
+# than escaping the extension boundary.
+SELECT ai_prompt('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NULL AS invalid_utf8_prompt_is_null;
+SHOW WARNINGS;
+SELECT ai_embedding('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NULL AS invalid_utf8_embed_is_null;
+SHOW WARNINGS;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;

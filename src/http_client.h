@@ -24,27 +24,26 @@ namespace vsql_ai {
 
 class HttpClient {
  public:
+  // Exactly one of two outcomes holds:
+  //   `error` non-empty - no HTTP exchange happened; `error` says why and
+  //                       `status_code` is 0.
+  //   `error` empty     - a response was received; `status_code` and `body`
+  //                       are valid, and `error` stays empty even for 4xx/5xx
+  //                       so the caller can parse the body for a provider
+  //                       error message.
   struct Response {
-    int status_code;
+    int status_code = 0;
     std::string body;
     std::string error;
 
     bool is_success() const { return status_code >= 200 && status_code < 300; }
   };
 
-  HttpClient();
-  ~HttpClient();
-
-  // Make a POST request
-  Response post(const std::string& url, const std::string& path,
-                const std::string& body,
-                const std::map<std::string, std::string>& headers,
-                int timeout_seconds = 30);
-
- private:
-  // Helper to extract host from URL
-  static bool parse_url(const std::string& url, std::string* scheme,
-                        std::string* host, int* port);
+  // Make a POST request. Stateless — no instance required.
+  static Response post(const std::string& url, const std::string& path,
+                       const std::string& body,
+                       const std::map<std::string, std::string>& headers,
+                       int timeout_seconds);
 };
 
 }  // namespace vsql_ai
