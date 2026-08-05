@@ -20,22 +20,21 @@
 #include <string>
 
 #include "ai_providers.h"
-#include "http_client.h"
-#include "nlohmann/json.hpp"
-
-using namespace vsql;
-
-using json = nlohmann::json;
 
 namespace vsql_ai {
 
-// =============================================================================
-// PROMPT Implementation
-// =============================================================================
+// Longest error text passed to out.warning(). Provider messages can be far
+// longer than a useful warning, and the server clamps warnings anyway.
+constexpr size_t kMaxWarningBytes = 255;
 
-void prompt_impl(StringArg provider_arg, StringArg model_arg,
-                 StringArg api_key_arg, StringArg prompt_arg,
-                 StringResult out) {
+namespace {
+
+// Body of ai_prompt. Wrapped by prompt_impl so no exception escapes into the
+// server: JSON serialization throws on input that isn't valid UTF-8, and an
+// exception crossing the extension ABI boundary would terminate the process.
+void prompt_body(vsql::StringArg provider_arg, vsql::StringArg model_arg,
+                 vsql::StringArg api_key_arg, vsql::StringArg prompt_arg,
+                 vsql::StringResult out) {
   // Validate NULL inputs
   if (provider_arg.is_null() || model_arg.is_null() || api_key_arg.is_null() ||
       prompt_arg.is_null()) {
@@ -60,21 +59,22 @@ void prompt_impl(StringArg provider_arg, StringArg model_arg,
     return;
   }
 
-  if (api_key.empty() && provider_name != "local") {
-    out.warning("API key cannot be empty");
-    return;
-  }
-
   if (prompt_text.empty()) {
     out.warning("Prompt text cannot be empty");
     return;
   }
 
-  // Create provider
+  // Resolve the provider before checking the key: an unrecognised name should
+  // be reported as such rather than as a missing key.
   auto provider = create_provider(provider_name);
   if (!provider) {
-    std::string error_msg = "Unknown provider: " + provider_name;
-    out.warning(error_msg);
+    out.warning(
+        truncate_utf8("Unknown provider: " + provider_name, kMaxWarningBytes));
+    return;
+  }
+
+  if (api_key.empty() && provider->requires_api_key()) {
+    out.warning("API key cannot be empty");
     return;
   }
 
@@ -84,24 +84,21 @@ void prompt_impl(StringArg provider_arg, StringArg model_arg,
 
   // Handle errors
   if (!error.empty()) {
-    if (error.length() > 255) {
-      error = error.substr(0, 255);
-    }
-    out.warning(error);
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
     return;
   }
 
-  // Return result (truncates to buffer size automatically)
-  out.set(response);
+  // out.set() clamps with memcpy and would cut a multi-byte sequence, so trim
+  // on a code point boundary first. The view overload borrows from `response`,
+  // which outlives the call, so a response that already fits is not copied.
+  out.set(truncate_utf8_view(response, out.buffer().size()));
 }
 
-// =============================================================================
-// EMBEDDING Implementation
-// =============================================================================
-
-void embedding_impl(StringArg provider_arg, StringArg model_arg,
-                    StringArg api_key_arg, StringArg text_arg,
-                    StringResult out) {
+// Body of ai_embedding. Wrapped by embedding_impl for the same reason as
+// prompt_body above.
+void embedding_body(vsql::StringArg provider_arg, vsql::StringArg model_arg,
+                    vsql::StringArg api_key_arg, vsql::StringArg text_arg,
+                    vsql::StringResult out) {
   // Validate NULL inputs
   if (provider_arg.is_null() || model_arg.is_null() || api_key_arg.is_null() ||
       text_arg.is_null()) {
@@ -126,21 +123,22 @@ void embedding_impl(StringArg provider_arg, StringArg model_arg,
     return;
   }
 
-  if (api_key.empty() && provider_name != "local") {
-    out.warning("API key cannot be empty");
-    return;
-  }
-
   if (text.empty()) {
     out.warning("Text cannot be empty");
     return;
   }
 
-  // Create provider
+  // Resolve the provider before checking the key: an unrecognised name should
+  // be reported as such rather than as a missing key.
   auto provider = create_provider(provider_name);
   if (!provider) {
-    std::string error_msg = "Unknown provider: " + provider_name;
-    out.warning(error_msg);
+    out.warning(
+        truncate_utf8("Unknown provider: " + provider_name, kMaxWarningBytes));
+    return;
+  }
+
+  if (api_key.empty() && provider->requires_api_key()) {
+    out.warning("API key cannot be empty");
     return;
   }
 
@@ -150,16 +148,64 @@ void embedding_impl(StringArg provider_arg, StringArg model_arg,
 
   // Handle errors
   if (!error.empty()) {
-    if (error.length() > 255) {
-      error = error.substr(0, 255);
-    }
-    out.warning(error);
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
     return;
   }
 
-  // Return result (JSON array of floats; truncates to buffer size
-  // automatically)
+  // A clipped JSON array is not a smaller embedding, it is corrupt data.
+  // Refuse rather than return something that parses as a shorter vector.
+  if (embedding_json.size() > out.buffer().size()) {
+    out.warning("Embedding too large for the result buffer");
+    return;
+  }
   out.set(embedding_json);
+}
+
+}  // namespace
+
+namespace {
+
+// Report an exception as a warning. Building the message allocates, so a
+// second failure (bad_alloc, or anything thrown while unwinding) falls back to
+// a fixed string — out.warning() on a literal cannot throw.
+void report_exception(const std::exception* e, vsql::StringResult out) {
+  try {
+    out.warning(truncate_utf8(std::string("Internal error: ") + e->what(),
+                              kMaxWarningBytes));
+  } catch (...) {
+    out.warning("Internal error");
+  }
+}
+
+}  // namespace
+
+// These are the ABI boundary: the SDK does not wrap VDF calls, so an escaping
+// exception terminates the server. They would be marked noexcept to have the
+// compiler enforce that, but make_func's FuncParamTypes has no specialization
+// for noexcept function types, so registration fails to compile. The catch-all
+// below plus report_exception's own fallback are what hold the guarantee.
+void prompt_impl(vsql::StringArg provider_arg, vsql::StringArg model_arg,
+                 vsql::StringArg api_key_arg, vsql::StringArg prompt_arg,
+                 vsql::StringResult out) {
+  try {
+    prompt_body(provider_arg, model_arg, api_key_arg, prompt_arg, out);
+  } catch (const std::exception& e) {
+    report_exception(&e, out);
+  } catch (...) {
+    out.warning("Internal error");
+  }
+}
+
+void embedding_impl(vsql::StringArg provider_arg, vsql::StringArg model_arg,
+                    vsql::StringArg api_key_arg, vsql::StringArg text_arg,
+                    vsql::StringResult out) {
+  try {
+    embedding_body(provider_arg, model_arg, api_key_arg, text_arg, out);
+  } catch (const std::exception& e) {
+    report_exception(&e, out);
+  } catch (...) {
+    out.warning("Internal error");
+  }
 }
 
 }  // namespace vsql_ai
@@ -169,21 +215,21 @@ void embedding_impl(StringArg provider_arg, StringArg model_arg,
 // =============================================================================
 
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension()
-        .func(make_func<&vsql_ai::prompt_impl>("ai_prompt")
-                  .returns(STRING)
-                  .param(STRING)      // provider
-                  .param(STRING)      // model
-                  .param(STRING)      // api_key
-                  .param(STRING)      // prompt
-                  .buffer_size(65535) // Large buffer for AI responses
+    vsql::make_extension()
+        .func(vsql::make_func<&vsql_ai::prompt_impl>("ai_prompt")
+                  .returns(vsql::STRING)
+                  .param(vsql::STRING) // provider
+                  .param(vsql::STRING) // model
+                  .param(vsql::STRING) // api_key
+                  .param(vsql::STRING) // prompt
+                  .buffer_size(65535)  // Large buffer for AI responses
                   .build())
 
-        .func(make_func<&vsql_ai::embedding_impl>("ai_embedding")
-                  .returns(STRING)
-                  .param(STRING) // provider
-                  .param(STRING) // model
-                  .param(STRING) // api_key
-                  .param(STRING) // text
+        .func(vsql::make_func<&vsql_ai::embedding_impl>("ai_embedding")
+                  .returns(vsql::STRING)
+                  .param(vsql::STRING) // provider
+                  .param(vsql::STRING) // model
+                  .param(vsql::STRING) // api_key
+                  .param(vsql::STRING) // text
                   .buffer_size(65535)
                   .build()))

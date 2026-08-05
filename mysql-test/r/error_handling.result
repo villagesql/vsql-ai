@@ -1,44 +1,65 @@
 INSTALL EXTENSION vsql_ai;
-SELECT ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider;
-null_provider
+SELECT ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider_is_null;
+null_provider_is_null
 1
-SELECT ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model;
-null_model
+SELECT ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model_is_null;
+null_model_is_null
 1
-SELECT ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key;
-null_key
+SELECT ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key_is_null;
+null_key_is_null
 1
-SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt;
-null_prompt
+SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt_is_null;
+null_prompt_is_null
 1
-SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NOT NULL AS has_result;
-has_result
-0
+SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NULL AS unknown_provider_is_null;
+unknown_provider_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Unknown provider: invalid_provider
-SELECT ai_prompt('', 'model', 'key', 'test') IS NOT NULL AS empty_provider_result;
-empty_provider_result
-0
+SELECT ai_prompt('', 'model', 'key', 'test') IS NULL AS empty_provider_is_null;
+empty_provider_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Provider name cannot be empty
-SELECT ai_prompt('anthropic', '', 'key', 'test') IS NOT NULL AS empty_model_result;
-empty_model_result
-0
+SELECT ai_prompt('anthropic', '', 'key', 'test') IS NULL AS empty_model_is_null;
+empty_model_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Model name cannot be empty
-SELECT ai_prompt('anthropic', 'model', '', 'test') IS NOT NULL AS empty_key_result;
-empty_key_result
-0
+SELECT ai_prompt('anthropic', 'model', '', 'test') IS NULL AS empty_key_is_null;
+empty_key_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': API key cannot be empty
-SELECT ai_prompt('anthropic', 'model', 'key', '') IS NOT NULL AS empty_prompt_result;
-empty_prompt_result
-0
+SELECT ai_prompt('anthropic', 'model', 'key', '') IS NULL AS empty_prompt_is_null;
+empty_prompt_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': Prompt text cannot be empty
-SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NOT NULL AS embed_not_implemented;
-embed_not_implemented
-0
+SELECT ai_embedding('google', 'model', 'key', '') IS NULL AS empty_text_is_null;
+empty_text_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': Text cannot be empty
+SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NULL AS unknown_provider_embed_is_null;
+unknown_provider_embed_is_null
+1
 Warnings:
 Warning	3200	VDF error in function 'ai_embedding': Unknown provider: unknown_provider
+SELECT ai_prompt('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NULL AS invalid_utf8_prompt_is_null;
+invalid_utf8_prompt_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_prompt': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+SELECT ai_embedding('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NULL AS invalid_utf8_embed_is_null;
+invalid_utf8_embed_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_embedding': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
 UNINSTALL EXTENSION vsql_ai;

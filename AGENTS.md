@@ -63,9 +63,9 @@ This extension uses the Protocol V3 stable SDK (`<villagesql/vsql.h>`).
 
 ```cpp
 #include <villagesql/vsql.h>
-using namespace vsql;
 
-void my_function_impl(StringArg arg1, StringArg arg2, StringResult out) {
+void my_function_impl(vsql::StringArg arg1, vsql::StringArg arg2,
+                      vsql::StringResult out) {
     if (arg1.is_null() || arg2.is_null()) { out.set_null(); return; }
     std::string value1(arg1.value());
     // ...
@@ -73,14 +73,23 @@ void my_function_impl(StringArg arg1, StringArg arg2, StringResult out) {
 }
 
 VEF_GENERATE_ENTRY_POINTS(
-    make_extension()
-        .func(make_func<&my_function_impl>("my_function")
-                  .returns(STRING).param(STRING).param(STRING)
+    vsql::make_extension()
+        .func(vsql::make_func<&my_function_impl>("my_function")
+                  .returns(vsql::STRING).param(vsql::STRING).param(vsql::STRING)
                   .buffer_size(65535).build())
 )
 ```
 
+Qualify SDK names with `vsql::` — do not put a `using namespace vsql;` directive at file scope.
+
 Use `out.set_null()` for NULL, `out.warning("msg")` for soft errors (Warning 3200 + NULL), `out.error("msg")` for hard errors. Extension name/version come from `manifest.json`; `make_extension()` takes no args in V3.
+
+**Exception safety is the extension's responsibility.** The SDK does not wrap
+VDF implementations in a try/catch, so an exception escaping an entry point
+crosses the C ABI and terminates the server. This is reachable from ordinary
+SQL — `nlohmann::json::dump()` throws on input that is not valid UTF-8. Every
+entry point must wrap its body in `try` / `catch (const std::exception&)` /
+`catch (...)` and convert the exception into `out.warning(...)`.
 
 ## Testing
 
@@ -146,7 +155,7 @@ public:
 - **AnthropicProvider**: Implements Claude API (messages endpoint)
 - **GoogleProvider**: Implements Gemini API (generateContent, embedContent endpoints)
 - **OpenAIProvider**: Implements OpenAI API (chat/completions, embeddings endpoints)
-- **LocalProvider**: Connects to Ollama on 127.0.0.1:11434 using OpenAI-compatible API (no API key required)
+- **LocalProvider**: Connects to Ollama on 127.0.0.1:11434 — `/api/chat` (native, with `"think": false`) for prompting and the OpenAI-compatible `/v1/embeddings` for embeddings. No API key required; 300-second timeout.
 
 ### Adding a New Provider
 1. Create a new class that inherits from `AIProvider`

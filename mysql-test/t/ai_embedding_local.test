@@ -7,7 +7,8 @@ if (!$OLLAMA_EMBED_MODEL) {
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# Test with no Ollama running - should produce a warning (connection refused)
+# A model that has not been pulled produces a warning and NULL, carrying
+# Ollama's own "model not found" text.
 SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
 SHOW WARNINGS;
 
