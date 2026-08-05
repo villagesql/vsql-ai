@@ -168,9 +168,9 @@ namespace {
 // Report an exception as a warning. Building the message allocates, so a
 // second failure (bad_alloc, or anything thrown while unwinding) falls back to
 // a fixed string — out.warning() on a literal cannot throw.
-void report_exception(const std::exception* e, vsql::StringResult out) {
+void report_exception(const std::exception& e, vsql::StringResult out) {
   try {
-    out.warning(truncate_utf8(std::string("Internal error: ") + e->what(),
+    out.warning(truncate_utf8(std::string("Internal error: ") + e.what(),
                               kMaxWarningBytes));
   } catch (...) {
     out.warning("Internal error");
@@ -190,7 +190,7 @@ void prompt_impl(vsql::StringArg provider_arg, vsql::StringArg model_arg,
   try {
     prompt_body(provider_arg, model_arg, api_key_arg, prompt_arg, out);
   } catch (const std::exception& e) {
-    report_exception(&e, out);
+    report_exception(e, out);
   } catch (...) {
     out.warning("Internal error");
   }
@@ -202,7 +202,7 @@ void embedding_impl(vsql::StringArg provider_arg, vsql::StringArg model_arg,
   try {
     embedding_body(provider_arg, model_arg, api_key_arg, text_arg, out);
   } catch (const std::exception& e) {
-    report_exception(&e, out);
+    report_exception(e, out);
   } catch (...) {
     out.warning("Internal error");
   }

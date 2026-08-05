@@ -46,6 +46,35 @@ std::string truncate_utf8(const std::string& text, size_t max_bytes) {
   return std::string(truncate_utf8_view(text, max_bytes));
 }
 
+namespace {
+
+// Turn an upstream `error` member into text. The shape is not guaranteed:
+// Anthropic, Google and OpenAI nest {"error": {"message": "..."}}, Ollama also
+// sends {"error": "..."}, and any of them can send a "message" that is not a
+// string (an object, an array, a number) — .get<std::string>() would throw
+// type_error.302 on those, which the caller reports as a bogus "JSON parse
+// error". Only a string is read as text; anything else is dumped verbatim so
+// the message still carries what the provider said.
+//
+// dump() uses the replacing error handler because the error path must not
+// throw: a body with invalid UTF-8 would otherwise mask the real failure.
+std::string extract_error_message(const json& error_node) {
+  if (error_node.is_string()) {
+    return error_node.get<std::string>();
+  }
+
+  if (error_node.is_object()) {
+    auto message = error_node.find("message");
+    if (message != error_node.end() && message->is_string()) {
+      return message->get<std::string>();
+    }
+  }
+
+  return error_node.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+}  // namespace
+
 // =============================================================================
 // AnthropicProvider Implementation
 // =============================================================================
@@ -78,11 +107,7 @@ std::string AnthropicProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -192,11 +217,7 @@ std::string GoogleProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -293,11 +314,7 @@ std::string GoogleProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
                  truncate_utf8(response.body, kMaxErrorBodyBytes);
@@ -315,11 +332,7 @@ std::string GoogleProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 
@@ -380,11 +393,7 @@ std::string OpenAIProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -474,11 +483,7 @@ std::string OpenAIProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
                  truncate_utf8(response.body, kMaxErrorBodyBytes);
@@ -496,11 +501,7 @@ std::string OpenAIProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 
@@ -563,13 +564,7 @@ std::string LocalProvider::parse_response(const std::string& response_json,
 
     // Check for API error
     if (response.contains("error")) {
-      if (response["error"].is_string()) {
-        *error = response["error"].get<std::string>();
-      } else if (response["error"].contains("message")) {
-        *error = response["error"]["message"].get<std::string>();
-      } else {
-        *error = response["error"].dump();
-      }
+      *error = extract_error_message(response["error"]);
       return "";
     }
 
@@ -664,13 +659,7 @@ std::string LocalProvider::embed(const std::string& model,
     try {
       auto error_response = json::parse(response.body);
       if (error_response.contains("error")) {
-        if (error_response["error"].is_string()) {
-          *error = error_response["error"].get<std::string>();
-        } else if (error_response["error"].contains("message")) {
-          *error = error_response["error"]["message"].get<std::string>();
-        } else {
-          *error = error_response["error"].dump();
-        }
+        *error = extract_error_message(error_response["error"]);
       } else {
         *error = "HTTP " + std::to_string(response.status_code) + " - " +
                  truncate_utf8(response.body, kMaxErrorBodyBytes);
@@ -688,13 +677,7 @@ std::string LocalProvider::embed(const std::string& model,
 
     // Check for API error
     if (response_json.contains("error")) {
-      if (response_json["error"].is_string()) {
-        *error = response_json["error"].get<std::string>();
-      } else if (response_json["error"].contains("message")) {
-        *error = response_json["error"]["message"].get<std::string>();
-      } else {
-        *error = response_json["error"].dump();
-      }
+      *error = extract_error_message(response_json["error"]);
       return "";
     }
 

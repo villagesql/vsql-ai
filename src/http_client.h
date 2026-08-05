@@ -25,18 +25,17 @@ namespace vsql_ai {
 class HttpClient {
  public:
   // Exactly one of two outcomes holds:
-  //   transport_failed()  - no HTTP exchange happened; `error` says why and
-  //                         `status_code` is 0.
-  //   otherwise           - a response was received; `status_code` and `body`
-  //                         are valid and `error` is empty even for 4xx/5xx,
-  //                         so the caller can parse the body for a provider
-  //                         error message.
+  //   `error` non-empty - no HTTP exchange happened; `error` says why and
+  //                       `status_code` is 0.
+  //   `error` empty     - a response was received; `status_code` and `body`
+  //                       are valid, and `error` stays empty even for 4xx/5xx
+  //                       so the caller can parse the body for a provider
+  //                       error message.
   struct Response {
     int status_code = 0;
     std::string body;
     std::string error;
 
-    bool transport_failed() const { return status_code == 0; }
     bool is_success() const { return status_code >= 200 && status_code < 300; }
   };
 
