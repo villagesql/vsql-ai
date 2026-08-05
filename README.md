@@ -78,7 +78,7 @@ INSTALL EXTENSION vsql_ai;
 -- Simple prompt with Claude
 SELECT ai_prompt(
     'anthropic',
-    'claude-sonnet-4-5-20250929',
+    'claude-opus-5',
     'your-api-key-here',
     'Explain quantum computing in one sentence'
 ) AS response;
@@ -129,7 +129,7 @@ INSERT INTO questions VALUES
 -- Get AI responses for multiple questions using Claude
 SET @api_key = 'your-anthropic-api-key';
 SELECT id, question,
-       ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, question) AS answer
+       ai_prompt('anthropic', 'claude-opus-5', @api_key, question) AS answer
 FROM questions;
 
 -- Or use Gemini
@@ -183,13 +183,14 @@ Currently supported:
 
 #### Anthropic (provider: `anthropic`)
 Claude models:
-- **Claude Sonnet 4.5**: `claude-sonnet-4-5-20250929` (recommended - best for complex agents and coding)
-- **Claude Haiku 4.5**: `claude-haiku-4-5-20251001` (fastest with near-frontier intelligence)
-- **Claude Opus 4.5**: `claude-opus-4-5-20251101` (maximum capability and intelligence)
-- **Claude Sonnet 4.6**: `claude-sonnet-4-6`
-- **Claude Opus 4.7**: `claude-opus-4-7`
-- **Claude Opus 4.8**: `claude-opus-4-8`
-- **Claude Fable 5**: `claude-fable-5`
+- **Claude Fable 5**: `claude-fable-5` (most capable model, for the most demanding reasoning and long-horizon work)
+- **Claude Opus 5**: `claude-opus-5` (recommended - complex agentic coding and enterprise work)
+- **Claude Sonnet 5**: `claude-sonnet-5` (best combination of speed and intelligence)
+- **Claude Haiku 4.5**: `claude-haiku-4-5` (fastest and most cost-effective)
+
+Also supported (previous generations): `claude-opus-4-8`, `claude-opus-4-7`,
+`claude-opus-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-6`,
+`claude-sonnet-4-5-20250929`.
 
 #### Google (provider: `google`)
 **Generative:**
@@ -225,7 +226,7 @@ Send a prompt to an AI provider and get a response.
 
 **Parameters:**
 - `provider` (STRING): AI provider name ("anthropic", "google", "openai", "local")
-- `model` (STRING): Model identifier (e.g., "claude-sonnet-4-5-20250929", "gemini-2.5-flash", "gpt-4o-mini", "llama3.2")
+- `model` (STRING): Model identifier (e.g., "claude-opus-5", "gemini-2.5-flash", "gpt-4o-mini", "llama3.2")
 - `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
 - `prompt` (STRING): The prompt text to send to the AI
 
@@ -234,7 +235,7 @@ Send a prompt to an AI provider and get a response.
 **Examples:**
 ```sql
 -- Anthropic Claude
-SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'Hello!');
+SELECT ai_prompt('anthropic', 'claude-opus-5', @api_key, 'Hello!');
 
 -- Google Gemini
 SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
@@ -285,7 +286,7 @@ SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascin
    SET @api_key = 'sk-ant-your-api-key';
 
    -- Use variable in queries
-   SELECT ai_prompt('anthropic', 'claude-sonnet-4-5-20250929', @api_key, 'prompt');
+   SELECT ai_prompt('anthropic', 'claude-opus-5', @api_key, 'prompt');
    ```
    Session variables keep API keys out of query text and reduce exposure in logs.
 
