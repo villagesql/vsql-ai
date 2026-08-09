@@ -14,6 +14,18 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 
 ## Installation
 
+If you installed VillageSQL with the install script, the Docker image, or a
+release tarball, `vsql_ai.veb` is already in the server's `lib/veb/`
+directory — this extension is bundled with the server. There is nothing to build
+or download:
+
+```sql
+INSTALL EXTENSION vsql_ai;
+```
+
+Build from source only if you built the server from source without the bundled
+extensions, or if you are working on this extension itself.
+
 ### Build from Source
 
 #### Prerequisites
@@ -44,14 +56,14 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
    ```bash
    mkdir -p build
    cd build
-   cmake .. -DVillageSQL_BUILD_DIR=~/build/villagesql
+   cmake .. -DVillageSQL_BUILD_DIR="$HOME/build/villagesql"
    ```
 
    **Note**: `VillageSQL_BUILD_DIR` should point to your VillageSQL build directory.
 
 3. Build the extension:
    ```bash
-   make -j $(($(getconf _NPROCESSORS_ONLN) - 2))
+   make -j $(getconf _NPROCESSORS_ONLN)
    ```
 
    This creates the `veb` package in the build directory.
@@ -61,7 +73,7 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
    make install
    ```
 
-   This copies the VEB to the directory specified by `VEB_INSTALL_DIR`. If not using `make install`, you can manually copy the VEB file to your desired location.
+   This copies the VEB to the directory specified by `VillageSQL_VEB_INSTALL_DIR`. If not using `make install`, you can manually copy the VEB file to your desired location.
 
 ## Usage
 
@@ -417,8 +429,8 @@ VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
 
 **macOS:**
 ```bash
-cd ~/build/mysql-test
-VSQL_AI_VEB=/path/to/vsql-ai/build/veb \
+cd ~/build/villagesql/mysql-test
+VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 ```
 
