@@ -169,12 +169,12 @@ SELECT ai_embedding(
 
 #### Storing Embeddings in a JSON Column
 
-`ai_embedding()` returns the vector as JSON text, but the result carries the
-binary character set. MySQL's JSON functions and `JSON` columns reject it
-directly:
+On VillageSQL 0.0.6 and earlier, `ai_embedding()` returns the vector as JSON
+text, but the result carries the binary character set. MySQL's JSON
+functions and `JSON` columns reject it directly:
 
 ```sql
--- This fails:
+-- On 0.0.6 and earlier, this fails:
 -- ERROR 3144 (22032): Cannot create a JSON value from a string with
 -- CHARACTER SET 'binary'
 INSERT INTO documents (id, content, embedding)
@@ -204,8 +204,10 @@ VALUES (1, 'Machine learning is a subset of artificial intelligence',
 SELECT id, JSON_LENGTH(embedding) AS dimensions FROM documents;
 ```
 
-Plain `TEXT` columns need no conversion — it is only JSON parsing that is
-affected.
+VillageSQL 0.0.7 and later return the correct charset directly, so `CONVERT`
+is no longer required there — but it is harmless to keep, and the example
+above works on every version. Plain `TEXT` columns need no conversion on any
+version — it is only JSON parsing that is affected.
 
 ### Supported Providers
 
@@ -368,10 +370,11 @@ issues one request per row, serially. There is no batching or asynchronous
 execution. Materialize results into a column rather than recomputing them per
 query, and raise `max_execution_time` for multi-row statements.
 
-**Embedding output needs an explicit conversion for JSON use.** The returned
-string carries the binary character set, so `JSON_VALID()`, `JSON_LENGTH()`,
-and inserts into a `JSON` column all reject it until you wrap the call in
-`CONVERT(... USING utf8mb4)`. See
+**Embedding output needs an explicit conversion for JSON use on 0.0.6 and
+earlier.** There, the returned string carries the binary character set, so
+`JSON_VALID()`, `JSON_LENGTH()`, and inserts into a `JSON` column all reject
+it until you wrap the call in `CONVERT(... USING utf8mb4)`. Fixed in
+VillageSQL 0.0.7. See
 [Storing Embeddings in a JSON Column](#storing-embeddings-in-a-json-column).
 
 **No embeddings from Anthropic.** `ai_embedding('anthropic', ...)` returns a
