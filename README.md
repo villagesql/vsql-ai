@@ -33,6 +33,7 @@ extensions, or if you are working on this extension itself.
 - CMake 3.16 or higher
 - C++17 compatible compiler
 - OpenSSL development libraries (for HTTPS connections)
+  - macOS: `brew install openssl@3` (detected automatically; override with `-DOPENSSL_ROOT_DIR=...`)
 
 📚 **Full Documentation**: Visit [villagesql.com/docs](https://villagesql.com/docs) for comprehensive guides on building extensions, architecture details, and more.
 

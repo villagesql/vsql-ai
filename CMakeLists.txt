@@ -30,6 +30,34 @@ message(STATUS "VillageSQL SDK found at: ${VillageSQL_PREFIX}")
 message(STATUS "VillageSQL include dir: ${VillageSQL_INCLUDE_DIR}")
 
 # Find OpenSSL (required for HTTPS in cpp-httplib)
+if(APPLE)
+    # macOS ships no OpenSSL headers, so use Homebrew's. Point at the stable
+    # "opt" symlink rather than the versioned Cellar path pkg-config reports,
+    # which disappears on every `brew upgrade openssl@3`.
+    if(NOT OPENSSL_ROOT_DIR AND NOT DEFINED ENV{OPENSSL_ROOT_DIR})
+        find_program(BREW_EXECUTABLE brew)
+        if(BREW_EXECUTABLE)
+            execute_process(
+                COMMAND ${BREW_EXECUTABLE} --prefix openssl@3
+                OUTPUT_VARIABLE BREW_OPENSSL_PREFIX
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE BREW_RESULT
+            )
+            if(BREW_RESULT EQUAL 0 AND EXISTS "${BREW_OPENSSL_PREFIX}/include/openssl/ssl.h")
+                set(OPENSSL_ROOT_DIR "${BREW_OPENSSL_PREFIX}")
+            endif()
+        endif()
+    endif()
+
+    # Drop cached OpenSSL paths that no longer exist (e.g. an old Cellar
+    # version removed by a Homebrew upgrade) so they are re-detected.
+    foreach(var OPENSSL_INCLUDE_DIR OPENSSL_SSL_LIBRARY OPENSSL_CRYPTO_LIBRARY)
+        if(DEFINED CACHE{${var}} AND NOT EXISTS "$CACHE{${var}}")
+            unset(${var} CACHE)
+        endif()
+    endforeach()
+endif()
 find_package(OpenSSL REQUIRED)
 message(STATUS "OpenSSL include: ${OPENSSL_INCLUDE_DIR}")
 message(STATUS "OpenSSL libraries: ${OPENSSL_LIBRARIES}")
@@ -44,12 +72,11 @@ add_library(ai_ext SHARED
 # Include directories
 target_include_directories(ai_ext PRIVATE
     ${VillageSQLExtensionFramework_INCLUDE_DIR}
-    ${OPENSSL_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include  # For cpp-httplib and nlohmann/json
 )
 
 # Link OpenSSL
-target_link_libraries(ai_ext PRIVATE ${OPENSSL_LIBRARIES})
+target_link_libraries(ai_ext PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 # Create the VEB package
 VEF_CREATE_VEB(
