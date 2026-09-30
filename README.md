@@ -33,6 +33,7 @@ extensions, or if you are working on this extension itself.
 - CMake 3.16 or higher
 - C++17 compatible compiler
 - OpenSSL development libraries (for HTTPS connections)
+  - macOS: `brew install openssl@3` (detected automatically; override with `-DOPENSSL_ROOT_DIR=...`)
 
 📚 **Full Documentation**: Visit [villagesql.com/docs](https://villagesql.com/docs) for comprehensive guides on building extensions, architecture details, and more.
 
@@ -397,9 +398,10 @@ The extension includes comprehensive tests using the MySQL Test Runner (MTR) fra
 
 ### Running Tests
 
-**Option 1 (Default): Using installed VEB**
-
-This method assumes you have successfully run `make install` to install the VEB to your veb_dir.
+The tests run `INSTALL EXTENSION vsql_ai`, which loads `vsql_ai.veb` from the
+server's VEB directory. Run `make install` after every build so the tests
+exercise your latest changes; otherwise they fail with `VEB file not found` or
+silently test an older build.
 
 **Linux:**
 ```bash
@@ -417,24 +419,6 @@ perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 
 # Run individual test
 perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test error_handling
-```
-
-**Option 2: Using a specific VEB file**
-
-Use this to test a specific VEB build without installing it first:
-
-**Linux:**
-```bash
-cd $HOME/build/villagesql/mysql-test
-VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
-  perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
-```
-
-**macOS:**
-```bash
-cd ~/build/villagesql/mysql-test
-VSQL_AI_VEB=/path/to/vsql-ai/build/vsql_ai.veb \
-  perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 ```
 
 ### Testing with Live API Calls
