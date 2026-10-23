@@ -72,6 +72,9 @@ add_library(ai_ext SHARED
 # Include directories
 target_include_directories(ai_ext PRIVATE
     ${VillageSQLExtensionFramework_INCLUDE_DIR}
+)
+# SYSTEM keeps warnings inside the vendored headers out of our build output
+target_include_directories(ai_ext SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include  # For cpp-httplib and nlohmann/json
 )
 
