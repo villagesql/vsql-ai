@@ -50,16 +50,16 @@ SELECT ai_prompt('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NU
 invalid_utf8_prompt_is_null
 1
 Warnings:
-Warning	3200	VDF error in function 'ai_prompt': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+Warning	3200	VDF error in function 'ai_prompt': Could not establish connection
 SHOW WARNINGS;
 Level	Code	Message
-Warning	3200	VDF error in function 'ai_prompt': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+Warning	3200	VDF error in function 'ai_prompt': Could not establish connection
 SELECT ai_embedding('local', 'no-such-model', '', CONVERT(0xFF USING latin1)) IS NULL AS invalid_utf8_embed_is_null;
 invalid_utf8_embed_is_null
 1
 Warnings:
-Warning	3200	VDF error in function 'ai_embedding': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+Warning	3200	VDF error in function 'ai_embedding': Could not establish connection
 SHOW WARNINGS;
 Level	Code	Message
-Warning	3200	VDF error in function 'ai_embedding': Internal error: [json.exception.type_error.316] invalid UTF-8 byte at index 0: 0xFF
+Warning	3200	VDF error in function 'ai_embedding': Could not establish connection
 UNINSTALL EXTENSION vsql_ai;
