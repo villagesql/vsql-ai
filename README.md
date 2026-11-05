@@ -46,18 +46,10 @@ extensions, or if you are working on this extension itself.
 
 2. Configure CMake with required paths:
 
-   **Linux:**
    ```bash
    mkdir -p build
    cd build
    cmake .. -DVillageSQL_BUILD_DIR=$HOME/build/villagesql
-   ```
-
-   **macOS:**
-   ```bash
-   mkdir -p build
-   cd build
-   cmake .. -DVillageSQL_BUILD_DIR="$HOME/build/villagesql"
    ```
 
    **Note**: `VillageSQL_BUILD_DIR` should point to your VillageSQL build directory.
@@ -403,18 +395,8 @@ server's VEB directory. Run `make install` after every build so the tests
 exercise your latest changes; otherwise they fail with `VEB file not found` or
 silently test an older build.
 
-**Linux:**
 ```bash
 cd $HOME/build/villagesql/mysql-test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
-
-# Run individual test
-perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test error_handling
-```
-
-**macOS:**
-```bash
-cd ~/build/villagesql/mysql-test
 perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test
 
 # Run individual test
@@ -434,15 +416,8 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 2. **Run the test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_anthropic
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_anthropic
    ```
 
@@ -455,29 +430,15 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 2. **Run the prompt test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_google
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_google
    ```
 
 3. **Run the embeddings test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_google
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_google
    ```
 
@@ -490,29 +451,15 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 2. **Run the prompt test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_openai
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_openai
    ```
 
 3. **Run the embeddings test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
    ```
 
@@ -528,29 +475,15 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 3. **Run the prompt test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_local
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_prompt_local
    ```
 
 4. **Run the embeddings test:**
 
-   **Linux:**
    ```bash
    cd $HOME/build/villagesql/mysql-test
-   perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_local
-   ```
-
-   **macOS:**
-   ```bash
-   cd ~/build/villagesql/mysql-test
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_local
    ```
 
