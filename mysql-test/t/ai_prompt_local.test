@@ -8,9 +8,11 @@ if (!$OLLAMA_MODEL) {
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# A model that has not been pulled produces a warning and NULL, carrying
-# Ollama's own "model not found" text.
-SELECT ai_prompt('local', 'llama3.2', '', 'Hello');
+# A model that has not been pulled produces a warning and NULL.
+# Ollama's wording differs between versions, so keep only the model name.
+--replace_regex /: model .*/: model no-such-model-vsql-test not found/
+SELECT ai_prompt('local', 'no-such-model-vsql-test', '', 'Hello');
+--replace_regex /: model .*/: model no-such-model-vsql-test not found/
 SHOW WARNINGS;
 
 # Test with real Ollama
