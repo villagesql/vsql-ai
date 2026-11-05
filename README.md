@@ -248,6 +248,8 @@ Also supported (previous generations): `claude-opus-4-8`, `claude-opus-4-7`,
 #### Local Ollama (provider: `local`)
 Connects to Ollama running on `127.0.0.1:11434`. No API key required. Use any model you have pulled in Ollama.
 
+If Ollama listens on another port, set `VSQL_AI_LOCAL_PORT` in the environment that starts the server, for example `VSQL_AI_LOCAL_PORT=12345`. A new value takes effect when the server restarts. SQL users cannot change the port.
+
 **Chat:** Any Ollama chat model (e.g., `llama3.2`, `mistral`, `gemma2`)
 
 **Embeddings:** Any Ollama embedding model (e.g., `nomic-embed-text`, `mxbai-embed-large`)
@@ -518,7 +520,7 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 #### Testing Local Ollama
 
-1. **Ensure Ollama is running** on `127.0.0.1:11434` with a model pulled.
+1. **Ensure Ollama is running** on `127.0.0.1:11434` with a model pulled. If Ollama uses another port, export `VSQL_AI_LOCAL_PORT` before you run the tests; MTR passes it to the server.
 
 2. **Export the model name:**
    ```bash

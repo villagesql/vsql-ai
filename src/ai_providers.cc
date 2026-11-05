@@ -16,6 +16,8 @@
 
 #include "ai_providers.h"
 
+#include <cstdlib>
+
 #include "http_client.h"
 #include "nlohmann/json.hpp"
 
@@ -524,7 +526,7 @@ std::string OpenAIProvider::embed(const std::string& model,
 }
 
 // =============================================================================
-// LocalProvider Implementation (Ollama on 127.0.0.1:11434)
+// LocalProvider Implementation (Ollama on 127.0.0.1)
 // =============================================================================
 
 // Local inference is not rate limited but can be slow: large models (e.g.
@@ -532,11 +534,31 @@ std::string OpenAIProvider::embed(const std::string& model,
 // non-streaming response, so allow far longer than the cloud providers.
 namespace {
 constexpr int kLocalTimeoutSeconds = 300;
+constexpr const char kLocalPortEnv[] = "VSQL_AI_LOCAL_PORT";
 }
 
+// The port comes from the server's environment, not from SQL, so a user who
+// can call ai_prompt cannot aim requests at other ports on the database host.
+std::string LocalProvider::get_endpoint(std::string* error) const {
+  const char* port = std::getenv(kLocalPortEnv);
+  if (port == nullptr || *port == '\0') {
+    return "http://127.0.0.1:11434";
+  }
 
-std::string LocalProvider::get_endpoint() const {
-  return "http://127.0.0.1:11434";
+  // At most five digits, so std::stoi cannot throw.
+  std::string port_str(port);
+  bool valid = port_str.size() <= 5 &&
+               port_str.find_first_not_of("0123456789") == std::string::npos;
+  if (valid) {
+    int port_num = std::stoi(port_str);
+    valid = port_num >= 1 && port_num <= 65535;
+  }
+  if (!valid) {
+    *error = std::string(kLocalPortEnv) + " is not a valid port: " +
+             truncate_utf8(port_str, 16);
+    return "";
+  }
+  return "http://127.0.0.1:" + port_str;
 }
 
 std::map<std::string, std::string> LocalProvider::get_headers() const {
@@ -605,9 +627,14 @@ std::string LocalProvider::prompt(const std::string& model,
   std::string request_body = build_request_body(model, prompt_text);
   auto headers = get_headers();
 
+  std::string endpoint = get_endpoint(error);
+  if (endpoint.empty()) {
+    return "";
+  }
+
   // Use Ollama's native chat endpoint rather than the OpenAI-compatible
   // one so thinking can be disabled via the "think" request option.
-  auto response = HttpClient::post(get_endpoint(), "/api/chat", request_body,
+  auto response = HttpClient::post(endpoint, "/api/chat", request_body,
                               headers, kLocalTimeoutSeconds);
 
   // Check for network errors
@@ -644,8 +671,13 @@ std::string LocalProvider::embed(const std::string& model,
   std::string request_body = request.dump();
   auto headers = get_headers();
 
+  std::string endpoint = get_endpoint(error);
+  if (endpoint.empty()) {
+    return "";
+  }
+
   // Make HTTP request
-  auto response = HttpClient::post(get_endpoint(), "/v1/embeddings", request_body,
+  auto response = HttpClient::post(endpoint, "/v1/embeddings", request_body,
                               headers, kLocalTimeoutSeconds);
 
   // Check for network errors

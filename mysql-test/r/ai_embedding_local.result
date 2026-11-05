@@ -1,12 +1,12 @@
 INSTALL EXTENSION vsql_ai;
-SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
-ai_embedding('local', 'nomic-embed-text', '', 'Hello')
+SELECT ai_embedding('local', 'no-such-model-vsql-test', '', 'Hello');
+ai_embedding('local', 'no-such-model-vsql-test', '', 'Hello')
 NULL
 Warnings:
-Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not found, try pulling it first
+Warning	3200	VDF error in function 'ai_embedding': model no-such-model-vsql-test not found
 SHOW WARNINGS;
 Level	Code	Message
-Warning	3200	VDF error in function 'ai_embedding': model "nomic-embed-text" not found, try pulling it first
+Warning	3200	VDF error in function 'ai_embedding': model no-such-model-vsql-test not found
 # Running live API test
 SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 is_json_array
