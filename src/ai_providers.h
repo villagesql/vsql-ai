@@ -115,7 +115,8 @@ class OpenAIProvider : public AIProvider {
                              std::string* error) const;
 };
 
-// Local provider implementation (Ollama on 127.0.0.1:11434)
+// Local provider implementation (Ollama on 127.0.0.1, port 11434 unless the
+// server's environment sets VSQL_AI_LOCAL_PORT)
 class LocalProvider : public AIProvider {
  public:
   std::string prompt(const std::string& model, const std::string& api_key,
@@ -128,7 +129,7 @@ class LocalProvider : public AIProvider {
   bool requires_api_key() const override { return false; }
 
  private:
-  std::string get_endpoint() const;
+  std::string get_endpoint(std::string* error) const;
   std::map<std::string, std::string> get_headers() const;
   std::string build_request_body(const std::string& model,
                                   const std::string& prompt) const;
