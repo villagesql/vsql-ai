@@ -9,7 +9,7 @@ if (!$GEMINI_API_KEY) {
 INSTALL EXTENSION vsql_ai;
 
 # Test with invalid API key - should produce a warning
-SELECT ai_prompt('google', 'gemini-2.5-flash', 'invalid_key_12345', 'Hello');
+SELECT ai_prompt('google', 'gemini-3.5-flash-lite', 'invalid_key_12345', 'Hello');
 SHOW WARNINGS;
 
 # Test with real API key
@@ -21,10 +21,10 @@ SHOW WARNINGS;
 --enable_query_log
 
 # Simple prompt test - Gemini should respond with SUCCESS
-SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+SELECT ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
 # Verify we got a non-empty response
-SELECT LENGTH(ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Reply with just: OK')) > 0 AS got_response;
 
 # Cleanup
 UNINSTALL EXTENSION vsql_ai;
