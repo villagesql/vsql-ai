@@ -91,7 +91,16 @@ void prompt_body(vsql::StringArg provider_arg, vsql::StringArg model_arg,
   // out.set() clamps with memcpy and would cut a multi-byte sequence, so trim
   // on a code point boundary first. The view overload borrows from `response`,
   // which outlives the call, so a response that already fits is not copied.
-  out.set(truncate_utf8_view(response, out.buffer().size()));
+  std::string_view trimmed = truncate_utf8_view(response, out.buffer().size());
+  out.set(trimmed);
+  // A trimmed prompt response is still a usable (if incomplete) answer, unlike
+  // a clipped embedding, so we return it rather than refusing outright -- but
+  // silently truncating with no diagnostic looks identical to the model just
+  // stopping early. warning() after set() keeps the value already written to
+  // the buffer while flagging that it was cut.
+  if (trimmed.size() < response.size()) {
+    out.warning("Prompt response truncated to fit the result buffer");
+  }
 }
 
 // Body of ai_embedding. Wrapped by embedding_impl for the same reason as

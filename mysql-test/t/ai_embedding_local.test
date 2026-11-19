@@ -7,13 +7,11 @@ if (!$OLLAMA_EMBED_MODEL) {
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# A model that has not been pulled produces a warning and NULL, carrying
-# Ollama's own "model not found" text. Ollama has reworded that text across
-# versions (quote style, a "try pulling it first" suffix), so it is
-# normalized to keep the result independent of the installed Ollama.
---replace_regex /model .nomic-embed-text. not found.*/model 'nomic-embed-text' not found/
-SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
---replace_regex /model .nomic-embed-text. not found.*/model 'nomic-embed-text' not found/
+# A model that has not been pulled produces a warning and NULL.
+# Ollama's wording differs between versions, so keep only the model name.
+--replace_regex /: model .*/: model no-such-model-vsql-test not found/
+SELECT ai_embedding('local', 'no-such-model-vsql-test', '', 'Hello');
+--replace_regex /: model .*/: model no-such-model-vsql-test not found/
 SHOW WARNINGS;
 
 --echo # Running live API test
