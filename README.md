@@ -9,6 +9,8 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 - **AI Prompting**: Send prompts to AI models directly from SQL queries
 - **Multiple Providers**: Support for Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama
 - **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama; store them as JSON or in a [vsql-vector](https://github.com/villagesql/vsql-vector) `SVECTOR` column
+- **Binary Embeddings**: `ai_embedding_binary()` returns packed float32 vectors, the layout of MySQL's `VECTOR` type
+- **Raw Requests**: `ai_request()` sends your own JSON body to a registered model's native API and returns the raw response
 - **Decisions**: Ask decision models (Gemini Decision, TypeSafe Jev, OpenAI) yes/no, multiple-choice and scored questions and get calibrated probabilities back as JSON
 - **High Performance**: Efficient C++ implementation with minimal overhead
 - **Secure**: API keys stay in the MySQL keyring, never in SQL text; HTTPS with certificate verification
@@ -340,6 +342,63 @@ LIMIT 5;
 Both restrictions are vsql-vector limitations (see its Known Limitations);
 the search is a full scan until it adds an index.
 
+#### Binary Embeddings
+
+`ai_embedding_binary(model_id, text)` returns the same embedding as
+`ai_embedding()`, as packed little-endian IEEE 754 float32 values: four bytes
+per dimension, in order, with no header (6,144 bytes for a 1536-dimension
+embedding). That is the byte layout MySQL's `VECTOR` type uses (MySQL 9, and
+Cloud SQL for MySQL), so systems built around that type can read it as is. On
+any server it fits a `VARBINARY` or `BLOB` column at a fifth to a third of the
+JSON size, and clients decode it directly, for example with NumPy's
+`np.frombuffer(value, dtype="<f4")`.
+
+```sql
+CREATE TABLE doc_vectors (id INT PRIMARY KEY, embedding VARBINARY(6144));
+INSERT INTO doc_vectors
+VALUES (1, ai_embedding_binary('embed', 'How do I reset my password?'));
+SELECT id, LENGTH(embedding) DIV 4 AS dimensions FROM doc_vectors;
+```
+
+The result is labelled with the binary character set.
+
+### Raw Requests
+
+`ai_request(model_id, request_json)` sends a JSON body you write to the
+registered model's native API and returns the provider's response unchanged,
+in the spirit of Cloud SQL's `ml_predict_row()`. Use it for anything the other
+functions do not expose: system prompts, multi-turn messages, temperature,
+structured output, tool definitions, token usage.
+
+```sql
+SELECT JSON_UNQUOTE(JSON_EXTRACT(
+  ai_request('gpt', '{
+    "messages": [{"role": "system", "content": "Answer in one word."},
+                 {"role": "user", "content": "Capital of France?"}],
+    "temperature": 0}'),
+  '$.choices[0].message.content')) AS answer;
+```
+
+| Provider | Endpoint | Body |
+|---|---|---|
+| `anthropic` | `POST /v1/messages` | Messages API; include `max_tokens` |
+| `google` | `POST /v1beta/models/{model}:generateContent` | `generateContent` body; the model is in the URL |
+| `openai` | `POST /v1/chat/completions` | Chat Completions body |
+| `local` | `POST /api/chat` (Ollama) | Ollama chat body |
+| `typesafe` | `POST /v1/systemone` | System One body (`state`, `questions`) |
+
+Before sending, the body is checked against the registry:
+
+- The registry decides the model. A body without `model` gets the registered
+  one; a body that names a different model is refused, so a caller cannot
+  switch to a costlier model than the one an administrator registered.
+- Streaming is refused (`"stream": true`); the response must arrive whole. For
+  Ollama, which streams by default, `"stream": false` is added.
+
+A non-2xx response returns NULL with the provider's error message as a
+warning. A response larger than the 64 KB result returns NULL with a warning
+rather than truncated JSON.
+
 ### Decisions
 
 `ai_decision(model_id, input, questions)` asks a decision model one or more
@@ -496,6 +555,22 @@ Generate a text embedding with a registered embedding model.
 - `text` (STRING): Text to embed
 
 **Returns:** STRING - JSON array of the embedding vector (dimensions vary by model)
+
+#### `ai_embedding_binary(model_id, text)`
+Generate a text embedding as packed little-endian float32.
+
+**Parameters:** as for `ai_embedding()`.
+
+**Returns:** BINARY - four bytes per dimension; see [Binary Embeddings](#binary-embeddings)
+
+#### `ai_request(model_id, request_json)`
+Send a native request body to a registered model's API.
+
+**Parameters:**
+- `model_id` (STRING): A model ID registered in `vsql_ai.models`
+- `request_json` (STRING): The request body, as JSON; see [Raw Requests](#raw-requests)
+
+**Returns:** STRING - the provider's JSON response, unchanged
 
 #### `ai_decision(model_id, input, questions)`
 Ask a decision model questions about a piece of input.
@@ -683,6 +758,22 @@ The extension includes live API tests for each provider. Each test will skip liv
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
    ```
 
+#### Unit Tests
+
+`unittest/vsql_ai_unittest.cc` covers code that SQL cannot reach on demand:
+the exception guard around each function (which no SQL input reaches now that
+the server converts arguments to valid utf8mb4), float32 packing, request
+checks for `ai_request()`, and translation of decision answers, including
+replies a live API will not produce on request. It needs no server or
+network. It is built with the extension (turn it off with
+`-DVSQL_AI_BUILD_TESTS=OFF`):
+
+```bash
+cd build
+make
+ctest --output-on-failure
+```
+
 #### Testing Decisions
 
 The offline `ai_decision` test needs nothing. The live tests use the same keys
@@ -727,9 +818,11 @@ perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test \
   server's general query log (`sql_log_off`)
 - Validate that responses contain expected content
 
-**Note:** The `ai_registry`, `ai_decision` and `error_handling` tests need no
-API key and no network access; they cover the registry, the keyring lookups,
-question validation and argument validation.
+**Note:** The `ai_registry`, `ai_decision`, `ai_request` and `error_handling`
+tests need no API key and no network access; they cover the registry, the
+keyring lookups, question and request validation, and argument validation.
+The live prompt and embedding tests also exercise `ai_request()` and
+`ai_embedding_binary()`.
 
 ## Development
 
@@ -740,8 +833,12 @@ vsql-ai/
 │   ├── ai_functions.cc      # VEF function implementations and registration
 │   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google, TypeSafe, Local)
 │   ├── decisions.h/.cc      # ai_decision: question checks, per-provider translation
+│   ├── embedding_format.h/.cc # Packing embeddings as float32 for ai_embedding_binary
+│   ├── raw_request.h/.cc    # ai_request: body checks and native endpoints
 │   ├── model_registry.h/.cc # Parsing and validation of vsql_ai.models
 │   └── http_client.h/.cc    # HTTP client wrapper for API calls
+├── unittest/
+│   └── vsql_ai_unittest.cc  # Unit tests (ctest); no server needed
 ├── include/
 │   ├── httplib.h            # cpp-httplib single header
 │   └── nlohmann/json.hpp    # nlohmann/json single header
@@ -777,6 +874,7 @@ The extension uses:
 - ✅ OpenAI GPT integration
 - ✅ OpenAI embeddings
 - ✅ Local Ollama provider (no API key required)
+- ✅ Binary (float32) embeddings and raw provider requests
 - ✅ Decision models: Gemini Decision, TypeSafe Jev, OpenAI decisions (`ai_decision()`)
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs

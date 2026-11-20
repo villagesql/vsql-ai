@@ -30,6 +30,13 @@ SELECT ai_prompt('live', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS conta
 # Verify we got a non-empty response
 SELECT LENGTH(ai_prompt('live', 'Reply with just: OK')) > 0 AS got_response;
 
+# ai_request(): a native Ollama /api/chat body. Ollama streams unless told
+# not to, so "stream": false is added.
+SET @response = ai_request('live', '{"messages": [{"role": "user", "content": "Say only the word: SUCCESS"}], "think": false}');
+SELECT JSON_VALID(@response) AS valid_json,
+       JSON_EXTRACT(@response, '$.done') AS done,
+       JSON_UNQUOTE(JSON_EXTRACT(@response, '$.message.content')) LIKE '%SUCCESS%' AS contains_success;
+
 # Cleanup
 SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

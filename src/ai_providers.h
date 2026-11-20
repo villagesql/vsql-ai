@@ -62,6 +62,16 @@ class AIProvider {
                              const decisions::json& questions,
                              std::string* error);
 
+  // Send a caller-written JSON body to the provider's native endpoint for
+  // this model and return the response body unchanged (see raw_request.h for
+  // what is checked and adjusted first). Endpoints: Anthropic /v1/messages,
+  // Google .../models/{model}:generateContent, OpenAI /v1/chat/completions,
+  // Ollama /api/chat, TypeSafe /v1/systemone.
+  virtual std::string request(const std::string& model,
+                              const std::string& api_key,
+                              const std::string& body_text,
+                              std::string* error) = 0;
+
   // Whether a non-empty API key is required. Locally hosted providers do not
   // authenticate, so the caller asks the provider rather than testing its name.
   virtual bool requires_api_key() const { return true; }
@@ -76,6 +86,10 @@ class AnthropicProvider : public AIProvider {
 
   std::string embed(const std::string& model, const std::string& api_key,
                     const std::string& text, std::string* error) override;
+
+  std::string request(const std::string& model, const std::string& api_key,
+                      const std::string& body_text,
+                      std::string* error) override;
 
  private:
   std::string get_endpoint() const;
@@ -102,6 +116,10 @@ class GoogleProvider : public AIProvider {
                      const decisions::json& questions,
                      std::string* error) override;
 
+  std::string request(const std::string& model, const std::string& api_key,
+                      const std::string& body_text,
+                      std::string* error) override;
+
  private:
   std::string get_endpoint() const;
   std::map<std::string, std::string> get_headers(
@@ -126,6 +144,10 @@ class OpenAIProvider : public AIProvider {
                      const decisions::json& questions,
                      std::string* error) override;
 
+  std::string request(const std::string& model, const std::string& api_key,
+                      const std::string& body_text,
+                      std::string* error) override;
+
  private:
   std::string get_endpoint() const;
   std::map<std::string, std::string> get_headers(
@@ -148,6 +170,10 @@ class LocalProvider : public AIProvider {
                     const std::string& text, std::string* error) override;
 
   bool requires_api_key() const override { return false; }
+
+  std::string request(const std::string& model, const std::string& api_key,
+                      const std::string& body_text,
+                      std::string* error) override;
 
  private:
   std::string get_endpoint(std::string* error) const;
@@ -173,6 +199,10 @@ class TypeSafeProvider : public AIProvider {
                      const std::string& input,
                      const decisions::json& questions,
                      std::string* error) override;
+
+  std::string request(const std::string& model, const std::string& api_key,
+                      const std::string& body_text,
+                      std::string* error) override;
 };
 
 // Factory function to create provider by name

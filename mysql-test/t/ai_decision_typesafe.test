@@ -65,6 +65,13 @@ SELECT JSON_EXTRACT(@answers, '$.urgency.type') AS score_type,
 # A noul answer carries confidence only when the provider returns one
 SELECT JSON_CONTAINS_PATH(@answers, 'one', '$.is_billing.confidence') AS noul_has_confidence;
 
+# ai_request(): a native System One body, returned unnormalized
+SET @response = ai_request('live', '{"state": "I was billed twice for invoice 4411.", "questions": {"is_billing": {"type": "noul", "instructions": "Is this message about billing?"}}}');
+SELECT JSON_VALID(@response) AS valid_json,
+       JSON_UNQUOTE(JSON_EXTRACT(@response, '$.model')) LIKE 'jev-%' AS versioned_model,
+       JSON_CONTAINS_PATH(@response, 'one', '$.usage.input_tokens') AS has_usage,
+       JSON_EXTRACT(@response, '$.answers.is_billing.noul') > 0.5 AS is_billing;
+
 # TypeSafe offers only decisions
 SELECT ai_prompt('live', 'Hello') IS NULL AS typesafe_prompt_is_null;
 SELECT ai_embedding('live', 'Hello') IS NULL AS typesafe_embedding_is_null;
