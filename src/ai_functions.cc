@@ -126,7 +126,6 @@ bool read_api_key(const ModelConfig& config, std::string* api_key,
   }
 }
 
-// Turn a model ID into a provider, model name and API key.
 // Return the current value of vsql_ai.models. See g_registry above.
 bool read_registry(std::string* registry, std::string* error) {
   {
@@ -158,6 +157,7 @@ bool read_registry(std::string* registry, std::string* error) {
   return true;
 }
 
+// Turn a model ID into a provider, model name and API key.
 bool resolve_model(const std::string& model_id, ResolvedModel* resolved,
                    std::string* error) {
   std::string registry;
