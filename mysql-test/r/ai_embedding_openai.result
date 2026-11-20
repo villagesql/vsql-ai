@@ -1,6 +1,20 @@
+SELECT STATUS_VALUE AS keyring_status
+FROM performance_schema.keyring_component_status
+WHERE STATUS_KEY = 'Component_status';
+keyring_status
+Active
 INSTALL EXTENSION vsql_ai;
-SELECT ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello');
-ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello')
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345')
+1
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "openai", "model": "text-embedding-3-small",
+              "key_id": "test_openai_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "openai", "model": "text-embedding-3-small",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+SELECT ai_embedding('bad_key', 'Hello');
+ai_embedding('bad_key', 'Hello')
 NULL
 Warnings:
 Warning	3200	VDF error in function 'ai_embedding': Incorrect API key provided: invalid_*****2345. You can find your API key at https://platform.openai.com/account/api-keys.
@@ -16,5 +30,12 @@ got_embedding
 1
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 got_second_embedding
+1
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_openai_key');
+keyring_key_remove('test_openai_key')
+1
+SELECT keyring_key_remove('test_invalid_key');
+keyring_key_remove('test_invalid_key')
 1
 UNINSTALL EXTENSION vsql_ai;

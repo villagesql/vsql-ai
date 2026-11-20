@@ -1,26 +1,10 @@
-# Test error handling for vsql_ai extension
+# Test error handling for vsql_ai extension. Argument and registry
+# validation is covered by ai_registry.
 
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
-# A NULL in any argument position yields NULL with no warning
-SELECT ai_prompt(NULL, 'model', 'key', 'prompt') IS NULL AS null_provider_is_null;
-SELECT ai_prompt('anthropic', NULL, 'key', 'prompt') IS NULL AS null_model_is_null;
-SELECT ai_prompt('anthropic', 'model', NULL, 'prompt') IS NULL AS null_key_is_null;
-SELECT ai_prompt('anthropic', 'model', 'key', NULL) IS NULL AS null_prompt_is_null;
-
-# A rejected argument yields NULL and raises warning 3200 describing why
-SELECT ai_prompt('invalid_provider', 'model', 'key', 'test') IS NULL AS unknown_provider_is_null;
-
-# Empty arguments are rejected the same way
-SELECT ai_prompt('', 'model', 'key', 'test') IS NULL AS empty_provider_is_null;
-SELECT ai_prompt('anthropic', '', 'key', 'test') IS NULL AS empty_model_is_null;
-SELECT ai_prompt('anthropic', 'model', '', 'test') IS NULL AS empty_key_is_null;
-SELECT ai_prompt('anthropic', 'model', 'key', '') IS NULL AS empty_prompt_is_null;
-SELECT ai_embedding('google', 'model', 'key', '') IS NULL AS empty_text_is_null;
-
-# ai_embedding rejects an unknown provider the same way ai_prompt does
-SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NULL AS unknown_provider_embed_is_null;
+SET GLOBAL vsql_ai.models = '{"local": {"provider": "local", "model": "no-such-model"}}';
 
 # Input that is not valid UTF-8 never reaches the extension: the server
 # rejects the conversion to the function's utf8mb4 argument with
@@ -29,9 +13,10 @@ SELECT ai_embedding('unknown_provider', 'model', 'key', 'text') IS NULL AS unkno
 # reaches the extension's catch for the exception json::dump() throws on
 # invalid UTF-8; that catch stays for any path that does deliver such input.
 --error 3854
-SELECT ai_prompt('local', 'no-such-model', '', _binary 0xFF) IS NULL AS invalid_utf8_prompt_is_null;
+SELECT ai_prompt('local', _binary 0xFF) IS NULL AS invalid_utf8_prompt_is_null;
 --error 3854
-SELECT ai_embedding('local', 'no-such-model', '', _binary 0xFF) IS NULL AS invalid_utf8_embed_is_null;
+SELECT ai_embedding('local', _binary 0xFF) IS NULL AS invalid_utf8_embed_is_null;
 
 # Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

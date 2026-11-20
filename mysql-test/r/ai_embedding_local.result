@@ -1,6 +1,6 @@
 INSTALL EXTENSION vsql_ai;
-SELECT ai_embedding('local', 'no-such-model-vsql-test', '', 'Hello');
-ai_embedding('local', 'no-such-model-vsql-test', '', 'Hello')
+SELECT ai_embedding('missing', 'Hello');
+ai_embedding('missing', 'Hello')
 NULL
 Warnings:
 Warning	3200	VDF error in function 'ai_embedding': model no-such-model-vsql-test not found
@@ -17,4 +17,5 @@ got_embedding
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 got_second_embedding
 1
+SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

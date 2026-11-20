@@ -8,25 +8,28 @@ if (!$OLLAMA_MODEL) {
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
+# The local provider needs no API key, so its models need no key_id and no
+# keyring. The model name comes from the environment, so it is hidden.
+--disable_query_log
+--eval SET GLOBAL vsql_ai.models = '{"live": {"provider": "local", "model": "$OLLAMA_MODEL"}, "missing": {"provider": "local", "model": "no-such-model-vsql-test"}}'
+--enable_query_log
+
 # A model that has not been pulled produces a warning and NULL.
 # Ollama's wording differs between versions, so keep only the model name.
 --replace_regex /: model .*/: model no-such-model-vsql-test not found/
-SELECT ai_prompt('local', 'no-such-model-vsql-test', '', 'Hello');
+SELECT ai_prompt('missing', 'Hello');
 --replace_regex /: model .*/: model no-such-model-vsql-test not found/
 SHOW WARNINGS;
 
 # Test with real Ollama
 --echo # Running live API test
 
---disable_query_log
---eval SET @model = '$OLLAMA_MODEL'
---enable_query_log
-
 # Simple prompt test - model should respond with SUCCESS
-SELECT ai_prompt('local', @model, '', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+SELECT ai_prompt('live', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
 # Verify we got a non-empty response
-SELECT LENGTH(ai_prompt('local', @model, '', 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(ai_prompt('live', 'Reply with just: OK')) > 0 AS got_response;
 
 # Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

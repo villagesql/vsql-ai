@@ -1,6 +1,20 @@
+SELECT STATUS_VALUE AS keyring_status
+FROM performance_schema.keyring_component_status
+WHERE STATUS_KEY = 'Component_status';
+keyring_status
+Active
 INSTALL EXTENSION vsql_ai;
-SELECT ai_embedding('google', 'gemini-embedding-001', 'invalid_key_12345', 'Hello');
-ai_embedding('google', 'gemini-embedding-001', 'invalid_key_12345', 'Hello')
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345')
+1
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "google", "model": "gemini-embedding-001",
+              "key_id": "test_google_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "google", "model": "gemini-embedding-001",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+SELECT ai_embedding('bad_key', 'Hello');
+ai_embedding('bad_key', 'Hello')
 NULL
 Warnings:
 Warning	3200	VDF error in function 'ai_embedding': API key not valid. Please pass a valid API key.
@@ -16,5 +30,12 @@ got_embedding
 1
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 got_second_embedding
+1
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_google_key');
+keyring_key_remove('test_google_key')
+1
+SELECT keyring_key_remove('test_invalid_key');
+keyring_key_remove('test_invalid_key')
 1
 UNINSTALL EXTENSION vsql_ai;

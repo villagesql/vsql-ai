@@ -1,28 +1,40 @@
 # Test OpenAI embeddings (text-embedding-3-small model) for vsql_ai extension
 
-# Skip if OPENAI_API_KEY is not set
 if (!$OPENAI_API_KEY) {
   skip Requires OPENAI_API_KEY environment variable;
 }
 
-# Install extension
+--source ../include/keyring_setup.inc
 INSTALL EXTENSION vsql_ai;
 
+# Store the API key in the keyring. A key stored with keyring_key_store() is
+# owned by the account that stored it. The statement carries the key, so it
+# is kept out of the result file and, with sql_log_off, out of the general
+# query log that MTR enables.
+--disable_query_log
+--disable_result_log
+SET SESSION sql_log_off = ON;
+--eval SELECT keyring_key_store('test_openai_key', 'SECRET', '$OPENAI_API_KEY')
+SET SESSION sql_log_off = OFF;
+--enable_result_log
+--enable_query_log
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "openai", "model": "text-embedding-3-small",
+              "key_id": "test_openai_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "openai", "model": "text-embedding-3-small",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+
 # Test with invalid API key - should produce a warning
-SELECT ai_embedding('openai', 'text-embedding-3-small', 'invalid_key_12345', 'Hello');
+SELECT ai_embedding('bad_key', 'Hello');
 SHOW WARNINGS;
 
-# Test with real API key
 --echo # Running live API test
 
-# Hide the API key from the result file
 --disable_query_log
---eval SET @api_key = '$OPENAI_API_KEY'
---enable_query_log
-
-# Create embedding for simple text
---disable_query_log
-SET @embedding = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Hello world');
+SET @embedding = ai_embedding('live', 'Hello world');
 --enable_query_log
 
 # Verify we got a JSON array back (starts with [ and ends with ])
@@ -33,10 +45,14 @@ SELECT LENGTH(@embedding) > 10 AS got_embedding;
 
 # Verify we can create embeddings for different text
 --disable_query_log
-SET @embedding2 = ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning');
+SET @embedding2 = ai_embedding('live', 'Machine learning');
 --enable_query_log
 
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 
 # Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_openai_key');
+SELECT keyring_key_remove('test_invalid_key');
 UNINSTALL EXTENSION vsql_ai;
+--source ../include/keyring_teardown.inc
