@@ -42,6 +42,8 @@ namespace vsql_ai {
 // Defined in ai_functions.cc.
 void prompt_impl(vsql::StringArg, vsql::StringArg, vsql::StringResult);
 void embedding_impl(vsql::StringArg, vsql::StringArg, vsql::StringResult);
+void embedding_binary_impl(vsql::StringArg, vsql::StringArg,
+                           vsql::BinaryResult);
 void request_impl(vsql::StringArg, vsql::StringArg, vsql::StringResult);
 void on_models_change(vsql::preview_sys_var::SysVarChange);
 }  // namespace vsql_ai
@@ -87,6 +89,14 @@ struct Result {
     raw.type = VEF_RESULT_VALUE;
   }
   vsql::StringResult get() { return vsql::StringResult(&raw); }
+  // The string and binary buffer fields share a union, so point the binary
+  // ones at the same storage before handing out a BinaryResult.
+  vsql::BinaryResult get_binary() {
+    raw.binary_buf = reinterpret_cast<unsigned char*>(buf);
+    raw.max_binary_len = sizeof(buf);
+    raw.alt_binary_buf = reinterpret_cast<unsigned char**>(&alt);
+    return vsql::BinaryResult(&raw);
+  }
 };
 
 void set_registry(const char* value) {
@@ -115,6 +125,13 @@ void test_exception_guard() {
     Arg model("local"), text(invalid);
     Result out;
     vsql_ai::embedding_impl(model.get(), text.get(), out.get());
+    CHECK(out.raw.type == VEF_RESULT_WARNING);
+    CHECK(std::strstr(out.error, "Internal error") != nullptr);
+  }
+  {
+    Arg model("local"), text(invalid);
+    Result out;
+    vsql_ai::embedding_binary_impl(model.get(), text.get(), out.get_binary());
     CHECK(out.raw.type == VEF_RESULT_WARNING);
     CHECK(std::strstr(out.error, "Internal error") != nullptr);
   }

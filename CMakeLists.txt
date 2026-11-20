@@ -88,7 +88,6 @@ target_include_directories(ai_ext SYSTEM PRIVATE
 # Link OpenSSL
 target_link_libraries(ai_ext PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
-# Create the VEB package
 # Unit tests for code that SQL cannot reach on demand (see the file's header).
 # They link the extension's sources into an ordinary executable and need no
 # server. Run with `ctest` after building.
@@ -116,6 +115,7 @@ if(VSQL_AI_BUILD_TESTS)
     add_test(NAME vsql_ai_unittest COMMAND vsql_ai_unittest)
 endif()
 
+# Create the VEB package
 VEF_CREATE_VEB(
     NAME ${EXTENSION_NAME}
     LIBRARY_TARGET ai_ext
