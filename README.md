@@ -287,8 +287,10 @@ Also supported (previous generations): `claude-fable-5-1`, `claude-fable-5`,
 
 Current Claude models think before answering, and on Opus 5.5 and Fable 5.2
 thinking cannot be turned off. Requests are sent with a 16,000-token output
-ceiling so thinking does not crowd out the answer. A refusal or a response cut
-off at that ceiling returns NULL with a warning saying so.
+ceiling so thinking does not crowd out the answer. A refusal, or a response
+that reaches that ceiling before it produces any text, returns NULL with a
+warning saying so. A response that reaches the ceiling after its answer has
+begun returns the text produced so far, with no warning.
 
 #### Google (provider: `google`)
 **Generative:**

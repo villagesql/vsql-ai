@@ -9,8 +9,9 @@ SET GLOBAL vsql_ai.models = '{"local": {"provider": "local", "model": "no-such-m
 # Input that is not valid UTF-8 never reaches the extension: the server
 # rejects the conversion to the function's utf8mb4 argument with
 # ER_CANNOT_CONVERT_STRING. (A latin1 literal would be converted instead,
-# 0xFF becoming a valid "ÿ", so a _binary literal is used.) The extension
-# still contains the json::dump() exception itself as defense in depth.
+# 0xFF becoming a valid "ÿ", so a _binary literal is used.) No test therefore
+# reaches the extension's catch for the exception json::dump() throws on
+# invalid UTF-8; that catch stays for any path that does deliver such input.
 --error 3854
 SELECT ai_prompt('local', _binary 0xFF) IS NULL AS invalid_utf8_prompt_is_null;
 --error 3854
