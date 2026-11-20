@@ -213,6 +213,23 @@ The registry holds no secrets, so any user may read it with
 `SELECT @@vsql_ai.models`. Changing it requires `SYSTEM_VARIABLES_ADMIN`, which
 is what controls who can add a model or point one at a key.
 
+**A registered model's key is shared by everyone who can call it.** The key
+is read as `key_owner` no matter which account calls `ai_prompt()` or
+`ai_embedding()`, so every caller spends that owner's provider credits, the
+way an application's service credentials are shared by all its users. Calling
+the functions needs no privilege of its own today; to limit spending, register
+only the models you are willing to share, and use a key with a spending limit
+at the provider.
+
+Two things to know about where the registry lives:
+
+- `UNINSTALL EXTENSION vsql_ai` discards it, including a value saved with
+  `SET PERSIST`. Set it again after reinstalling.
+- Set it with `SET GLOBAL` or `SET PERSIST`. A value given in an option file
+  or on the server command line is read through a 1 KB buffer, so one longer
+  than 1023 bytes (roughly eight models) makes every call fail with a warning
+  that says so.
+
 ### AI Prompting Examples
 
 ```sql

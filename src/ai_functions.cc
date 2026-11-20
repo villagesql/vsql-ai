@@ -19,6 +19,7 @@
 #include <villagesql/preview/sys_var.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "ai_providers.h"
@@ -31,8 +32,42 @@ namespace vsql_ai {
 constexpr size_t kMaxWarningBytes = 255;
 
 // Storage for vsql_ai.models. The server owns the buffer and frees it on SET,
-// so it is never read directly: read_registry() asks the server for a copy.
+// so it is never read directly.
 char* g_models = nullptr;
+
+// The registry as the extension last saw it, kept here because the server's
+// own read (SysVarCapability::get) copies a string variable through a 1 KB
+// buffer and fails outright for anything longer -- about eight models.
+// on_change receives the full value instead, and the server calls it for
+// every SET GLOBAL / SET PERSIST and for a persisted value applied at startup.
+// Only a value given on the command line or in an option file arrives without
+// it; read_registry() falls back to get() for that one case.
+std::mutex g_registry_mutex;
+std::string g_registry;
+bool g_registry_known = false;
+
+// Runs while the server holds its global system-variable lock: keep it to a
+// short private lock and a copy.
+void on_models_change(vsql::preview_sys_var::SysVarChange change) {
+  vsql::StringArg value = change.as_str();
+  std::string copy = value.is_null() ? std::string() : std::string(value.value());
+  std::lock_guard<std::mutex> lock(g_registry_mutex);
+  g_registry = std::move(copy);
+  g_registry_known = true;
+}
+
+// The server does not necessarily unload the library on UNINSTALL EXTENSION,
+// so the cache would otherwise outlive the variable: after a reinstall the
+// variable is back at its default but a call would still see the old models.
+// on_init deliberately leaves the cache alone, because a persisted value is
+// applied (and on_models_change run) during registration, before on_init.
+void on_extension_init() {}
+
+void on_extension_deinit() {
+  std::lock_guard<std::mutex> lock(g_registry_mutex);
+  g_registry.clear();
+  g_registry_known = false;
+}
 
 namespace sv = vsql::preview_sys_var;
 
@@ -41,7 +76,8 @@ auto g_sys_vars = sv::make_capability({
                  "JSON object mapping each model ID to its provider, the "
                  "provider's model name, and the keyring ID (key_id) and "
                  "owner (key_owner) of its API key",
-                 &g_models, ""),
+                 &g_models, "")
+        .on_change<&on_models_change>(),
 });
 
 vsql::preview_keyring::KeyringCapability g_keyring;
@@ -91,13 +127,41 @@ bool read_api_key(const ModelConfig& config, std::string* api_key,
 }
 
 // Turn a model ID into a provider, model name and API key.
+// Return the current value of vsql_ai.models. See g_registry above.
+bool read_registry(std::string* registry, std::string* error) {
+  {
+    std::lock_guard<std::mutex> lock(g_registry_mutex);
+    if (g_registry_known) {
+      *registry = g_registry;
+      return true;
+    }
+  }
+
+  // get() takes the server's system-variable lock, and on_models_change runs
+  // under that lock and then takes g_registry_mutex, so g_registry_mutex must
+  // not be held here or the two could deadlock.
+  std::string value;
+  if (g_sys_vars.get("vsql_ai", "models", value)) {
+    *error =
+        "Could not read vsql_ai.models. A value set at startup in an option "
+        "file or on the command line is limited to 1023 bytes; set it with "
+        "SET PERSIST instead";
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(g_registry_mutex);
+  if (!g_registry_known) {  // a SET that raced this read is newer; keep it
+    g_registry = value;
+    g_registry_known = true;
+  }
+  *registry = g_registry;
+  return true;
+}
+
 bool resolve_model(const std::string& model_id, ResolvedModel* resolved,
                    std::string* error) {
   std::string registry;
-  if (g_sys_vars.get("vsql_ai", "models", registry)) {
-    *error = "Could not read vsql_ai.models";
-    return false;
-  }
+  if (!read_registry(&registry, error)) return false;
   if (!find_model(registry, model_id, &resolved->config, error)) return false;
 
   resolved->provider = create_provider(resolved->config.provider);
@@ -259,6 +323,8 @@ void embedding_impl(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
 // extension only with vsql_allow_preview_extensions=ON.
 VEF_GENERATE_ENTRY_POINTS(
     vsql::make_extension()
+        .on_init<&vsql_ai::on_extension_init>()
+        .on_deinit<&vsql_ai::on_extension_deinit>()
         .with(vsql_ai::g_sys_vars)
         .with(vsql_ai::g_keyring)
         .func(vsql::make_func<&vsql_ai::prompt_impl>("ai_prompt")

@@ -134,10 +134,49 @@ no_keyring_is_null
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': No keyring component is installed; vsql_ai reads API keys from the MySQL keyring
 #
+# A registry longer than the server's 1 KB variable read still works
+#
+SET GLOBAL vsql_ai.models = CONCAT('{"pad": {"provider": "local", "model": "',
+REPEAT('x', 2000), '"}, "claude": {"provider": "anthropic", "model": "m", ',
+'"key_id": "anthropic_key", "key_owner": "root@localhost"}}');
+SELECT LENGTH(@@vsql_ai.models) > 2000 AS registry_over_1kb;
+registry_over_1kb
+1
+SELECT ai_prompt('claude', 'Hello') IS NULL AS large_registry_is_read;
+large_registry_is_read
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': No keyring component is installed; vsql_ai reads API keys from the MySQL keyring
+#
+# UNINSTALL EXTENSION discards the registry, even a persisted one, and
+# calls after a reinstall see the empty registry
+#
+SET GLOBAL vsql_ai.models = '{"gone": {"provider": "local", "model": "m"}}';
+SET PERSIST vsql_ai.models = '{"gone": {"provider": "local", "model": "m"}}';
+SELECT COUNT(*) AS persisted_before FROM performance_schema.persisted_variables
+WHERE VARIABLE_NAME = 'vsql_ai.models';
+persisted_before
+1
+UNINSTALL EXTENSION vsql_ai;
+SELECT COUNT(*) AS persisted_after FROM performance_schema.persisted_variables
+WHERE VARIABLE_NAME = 'vsql_ai.models';
+persisted_after
+0
+INSTALL EXTENSION vsql_ai;
+SELECT @@vsql_ai.models = '' AS registry_empty_after_reinstall;
+registry_empty_after_reinstall
+1
+SELECT ai_prompt('gone', 'Hello') IS NULL AS reinstall_resets_registry;
+reinstall_resets_registry
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'gone' is not registered: vsql_ai.models is empty
+#
 # Changing the registry needs SYSTEM_VARIABLES_ADMIN; reading it does not
 #
+SET GLOBAL vsql_ai.models = '{"visible": {"provider": "local", "model": "m"}}';
 CREATE USER ai_reader@localhost;
-SELECT @@vsql_ai.models LIKE '%claude-opus-5-5%' AS reader_sees_registry;
+SELECT @@vsql_ai.models LIKE '%visible%' AS reader_sees_registry;
 reader_sees_registry
 1
 SET GLOBAL vsql_ai.models = '{}';
