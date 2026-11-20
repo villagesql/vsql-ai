@@ -113,13 +113,34 @@ INSTALL EXTENSION vsql_ai;
 #### 2. Enable a keyring component
 
 API keys are read from whichever MySQL keyring component the server loads,
-for example `component_keyring_file` or `component_keyring_encrypted_file`. See
-[Keyring Components](https://dev.mysql.com/doc/refman/8.4/en/keyring-component-installation.html)
-in the MySQL manual. Check that one is active:
+for example `component_keyring_file` or `component_keyring_encrypted_file`.
 
-```sql
-SELECT * FROM performance_schema.keyring_component_status;
-```
+A keyring component is not installed with `INSTALL COMPONENT`. The server
+loads it at startup from a manifest file, so that the keyring is available
+before anything needs it. With `component_keyring_file`, that takes two JSON
+files and a restart:
+
+1. A manifest named `mysqld.my`, in the same directory as the `mysqld` binary:
+   ```json
+   { "components": "file://component_keyring_file" }
+   ```
+2. A configuration file named `component_keyring_file.cnf`, in the plugin
+   directory (`SELECT @@plugin_dir`). `path` is where the component keeps the
+   keys; the server's account must be able to write to it:
+   ```json
+   { "path": "/var/lib/mysql-keyring/component_keyring_file", "read_only": false }
+   ```
+3. Restart the server and check that the component is active:
+   ```sql
+   SELECT * FROM performance_schema.keyring_component_status;
+   ```
+   `Component_status` should be `Active`.
+
+Either file can instead live in the data directory: a global file containing
+`{ "read_local_manifest": true }` or `{ "read_local_config": true }` sends the
+server there. See
+[Keyring Components](https://dev.mysql.com/doc/refman/8.4/en/keyring-component-installation.html)
+in the MySQL manual for the other components and their options.
 
 Models served by local Ollama need no key, so this step is optional if you
 only use `local`.
@@ -127,9 +148,12 @@ only use `local`.
 #### 3. Store API keys
 
 `vsql_ai` reads the keyring directly and needs nothing beyond the keyring
-component. Storing a key from SQL, though, needs the `keyring_udf` plugin that
-ships with the server. Install it once per server, after the keyring component
-is active; the plugin and its functions persist across restarts:
+component. Storing a key from SQL, though, needs `keyring_udf`, a separate
+helper that ships with the server as a **plugin**, not a component, which is
+why it is installed with `INSTALL PLUGIN`. It provides the
+`keyring_key_store()` and `keyring_key_remove()` functions and works only once
+the keyring component is active. Install it once per server; the plugin and
+its functions persist across restarts:
 
 ```sql
 INSTALL PLUGIN keyring_udf SONAME 'keyring_udf.so';
