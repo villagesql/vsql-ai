@@ -108,9 +108,6 @@ void set_registry(const char* value) {
   vsql_ai::on_models_change(vsql::preview_sys_var::SysVarChange(&change));
 }
 
-// Issue #41: invalid UTF-8 reaching an entry point is reported as a warning,
-// never thrown across the extension boundary. A local model needs no key, and
-// the request body is serialized before any connection is attempted.
 // With the privilege check on but no MySQL services to ask (there is no
 // server here), every call must be refused, with an error rather than a
 // warning, and never allowed through.
@@ -125,6 +122,9 @@ void test_privilege_check_fails_closed() {
   set_registry("");
 }
 
+// Issue #41: invalid UTF-8 reaching an entry point is reported as a warning,
+// never thrown across the extension boundary. A local model needs no key, and
+// the request body is serialized before any connection is attempted.
 void test_exception_guard() {
   // The privilege check needs a server; this test is about what follows it.
   vsql_ai::g_require_privilege = false;

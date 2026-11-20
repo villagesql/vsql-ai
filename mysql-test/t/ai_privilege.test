@@ -70,6 +70,11 @@ SET GLOBAL vsql_ai.require_privilege = DEFAULT;
 SELECT ai_prompt('unregistered', 'Hello');
 --connection default
 --disconnect caller
+# A disconnect finishes in the background; UNINSTALL refuses while that
+# session still holds ai_prompt, so wait for it to close.
+let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.processlist
+                      WHERE user = 'ai_caller';
+--source include/wait_condition.inc
 
 --echo #
 --echo # A grant outlives an uninstall and applies again after reinstalling
