@@ -1,6 +1,22 @@
+SELECT STATUS_VALUE AS keyring_status
+FROM performance_schema.keyring_component_status
+WHERE STATUS_KEY = 'Component_status';
+keyring_status
+Active
 INSTALL EXTENSION vsql_ai;
-SELECT ai_prompt('anthropic', 'claude-sonnet-5-5', 'invalid_key_12345', 'Hello');
-ai_prompt('anthropic', 'claude-sonnet-5-5', 'invalid_key_12345', 'Hello')
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345')
+1
+SET GLOBAL vsql_ai.models = '{
+  "sonnet":  {"provider": "anthropic", "model": "claude-sonnet-5-5",
+              "key_id": "test_anthropic_key", "key_owner": "root@localhost"},
+  "fable":   {"provider": "anthropic", "model": "claude-fable-5-2",
+              "key_id": "test_anthropic_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "anthropic", "model": "claude-sonnet-5-5",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+SELECT ai_prompt('bad_key', 'Hello');
+ai_prompt('bad_key', 'Hello')
 NULL
 Warnings:
 Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
@@ -8,13 +24,20 @@ SHOW WARNINGS;
 Level	Code	Message
 Warning	3200	VDF error in function 'ai_prompt': invalid x-api-key
 # Running live API test
-SELECT ai_prompt('anthropic', 'claude-sonnet-5-5', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+SELECT ai_prompt('sonnet', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 contains_success
 1
-SELECT LENGTH(ai_prompt('anthropic', 'claude-sonnet-5-5', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(ai_prompt('sonnet', 'Reply with just: OK')) > 0 AS got_response;
 got_response
 1
-SELECT ai_prompt('anthropic', 'claude-fable-5-2', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS fable_contains_success;
+SELECT ai_prompt('fable', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS fable_contains_success;
 fable_contains_success
+1
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_anthropic_key');
+keyring_key_remove('test_anthropic_key')
+1
+SELECT keyring_key_remove('test_invalid_key');
+keyring_key_remove('test_invalid_key')
 1
 UNINSTALL EXTENSION vsql_ai;

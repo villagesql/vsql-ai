@@ -10,7 +10,8 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 - **Multiple Providers**: Support for Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama
 - **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama
 - **High Performance**: Efficient C++ implementation with minimal overhead
-- **Secure**: HTTPS communication with SSL certificate verification
+- **Secure**: API keys stay in the MySQL keyring, never in SQL text; HTTPS with certificate verification
+- **Model Registry**: Administrators register models once; queries name a model ID
 
 ## Installation
 
@@ -78,77 +79,127 @@ extensions, or if you are working on this extension itself.
 
 ## Usage
 
-After installation, load the extension in VillageSQL:
+Calls name a **model ID** that an administrator registers once, and API keys
+live in the **MySQL keyring** instead of in SQL text:
 
 ```sql
+SELECT ai_prompt('claude', 'Explain quantum computing in one sentence');
+SELECT ai_embedding('gemini-embed', 'Machine learning is fascinating');
+```
+
+> **Upgrading from 0.0.7 or earlier:** `ai_prompt(provider, model, api_key,
+> prompt)` and `ai_embedding(provider, model, api_key, text)` are gone. Calls
+> with four arguments now fail with `wrong number of arguments`. Register each
+> model in `vsql_ai.models`, store its key in the keyring, and pass the model
+> ID instead.
+
+### Setup
+
+#### 1. Allow preview extensions and install
+
+`vsql_ai` reads the keyring and its own system variable through VillageSQL
+preview capabilities, so the server must allow preview extensions:
+
+```sql
+SET PERSIST vsql_allow_preview_extensions = ON;
 INSTALL EXTENSION vsql_ai;
 ```
 
+#### 2. Enable a keyring component
+
+API keys are read from whichever MySQL keyring component the server loads,
+for example `component_keyring_file` or `component_keyring_encrypted_file`. See
+[Keyring Components](https://dev.mysql.com/doc/refman/8.4/en/keyring-component-installation.html)
+in the MySQL manual. Check that one is active:
+
+```sql
+SELECT * FROM performance_schema.keyring_component_status;
+```
+
+Models served by local Ollama need no key, so this step is optional if you
+only use `local`.
+
+#### 3. Store API keys
+
+The simplest way to put a key into the keyring from SQL is the `keyring_udf`
+plugin that ships with the server:
+
+```sql
+INSTALL PLUGIN keyring_udf SONAME 'keyring_udf.so';
+CREATE FUNCTION keyring_key_store RETURNS INTEGER SONAME 'keyring_udf.so';
+CREATE FUNCTION keyring_key_remove RETURNS INTEGER SONAME 'keyring_udf.so';
+
+-- The statement contains the key: keep it out of the general query log
+SET SESSION sql_log_off = ON;
+SELECT keyring_key_store('anthropic_key', 'SECRET', 'sk-ant-...');
+SET SESSION sql_log_off = OFF;
+```
+
+A key stored with `keyring_key_store()` is owned by the account that stored
+it (`CURRENT_USER()`, such as `root@localhost`); the registry names that
+account as `key_owner`. To rotate a key, remove it and store the new one:
+
+```sql
+SELECT keyring_key_remove('anthropic_key');
+SELECT keyring_key_store('anthropic_key', 'SECRET', 'sk-ant-new...');
+```
+
+Keys provisioned outside SQL, by tooling that writes the keyring directly,
+are internal keys with no owner: leave `key_owner` out for those.
+
+#### 4. Register models
+
+`vsql_ai.models` is a JSON object that maps each model ID to a provider, the
+provider's model name, and where its key is in the keyring. Use `SET PERSIST`
+so the registry survives a restart:
+
+```sql
+SET PERSIST vsql_ai.models = '{
+  "claude":       {"provider": "anthropic", "model": "claude-opus-5-5",
+                   "key_id": "anthropic_key", "key_owner": "root@localhost"},
+  "gemini":       {"provider": "google", "model": "gemini-3.5-flash-lite",
+                   "key_id": "gemini_key", "key_owner": "root@localhost"},
+  "gemini-embed": {"provider": "google", "model": "gemini-embedding-001",
+                   "key_id": "gemini_key", "key_owner": "root@localhost"},
+  "gpt":          {"provider": "openai", "model": "gpt-6-luna",
+                   "key_id": "openai_key", "key_owner": "root@localhost"},
+  "llama":        {"provider": "local", "model": "llama3.2"}
+}';
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `provider` | yes | `anthropic`, `google`, `openai` or `local` |
+| `model` | yes | The provider's model name, passed through unchanged |
+| `key_id` | except `local` | Keyring data ID of the API key |
+| `key_owner` | no | Keyring owner of the key; omit for an internal key |
+
+Model IDs are case-sensitive. Unknown fields are rejected, so a misspelt
+`key_id` is reported rather than ignored. The registry is checked when a model
+is used: a mistake in one entry does not affect the others.
+
+The registry holds no secrets, so any user may read it with
+`SELECT @@vsql_ai.models`. Changing it requires `SYSTEM_VARIABLES_ADMIN`, which
+is what controls who can add a model or point one at a key.
+
 ### AI Prompting Examples
 
-#### Anthropic Claude
 ```sql
--- Simple prompt with Claude
-SELECT ai_prompt(
-    'anthropic',
-    'claude-opus-5-5',
-    'your-api-key-here',
-    'Explain quantum computing in one sentence'
-) AS response;
-```
-
-#### Google Gemini
-```sql
--- Simple prompt with Gemini
-SELECT ai_prompt(
-    'google',
-    'gemini-3.5-flash-lite',
-    'your-api-key-here',
-    'Explain quantum computing in one sentence'
-) AS response;
-```
-
-#### OpenAI GPT
-```sql
--- Simple prompt with GPT
-SELECT ai_prompt(
-    'openai',
-    'gpt-6-luna',
-    'your-api-key-here',
-    'Explain quantum computing in one sentence'
-) AS response;
-```
-
-#### Local Ollama
-```sql
--- Simple prompt with local Ollama (no API key needed)
-SELECT ai_prompt(
-    'local',
-    'llama3.2',
-    '',
-    'Explain quantum computing in one sentence'
-) AS response;
+SELECT ai_prompt('claude', 'Explain quantum computing in one sentence') AS response;
+SELECT ai_prompt('gemini', 'Explain quantum computing in one sentence') AS response;
+SELECT ai_prompt('gpt',    'Explain quantum computing in one sentence') AS response;
+SELECT ai_prompt('llama',  'Explain quantum computing in one sentence') AS response;
 ```
 
 #### Using with Table Data
 ```sql
--- Use with table data
 CREATE TABLE questions (id INT, question TEXT);
 INSERT INTO questions VALUES
     (1, 'What is machine learning?'),
     (2, 'Explain neural networks'),
     (3, 'What is deep learning?');
 
--- Get AI responses for multiple questions using Claude
-SET @api_key = 'your-anthropic-api-key';
-SELECT id, question,
-       ai_prompt('anthropic', 'claude-opus-5-5', @api_key, question) AS answer
-FROM questions;
-
--- Or use Gemini
-SET @api_key = 'your-google-api-key';
-SELECT id, question,
-       ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, question) AS answer
+SELECT id, question, ai_prompt('claude', question) AS answer
 FROM questions;
 ```
 
@@ -156,65 +207,38 @@ FROM questions;
 
 #### Generate Embeddings
 ```sql
--- Generate embedding for text
-SET @api_key = 'your-google-api-key';
-SELECT ai_embedding(
-    'google',
-    'gemini-embedding-001',
-    @api_key,
-    'Machine learning is fascinating'
-) AS embedding;
+SELECT ai_embedding('gemini-embed', 'Machine learning is fascinating') AS embedding;
 
 -- Returns: [0.02646778, 0.019067757, -0.05332306, ...]
 ```
 
 #### Storing Embeddings in a JSON Column
 
-On VillageSQL 0.0.6 and earlier, `ai_embedding()` returns the vector as JSON
-text, but the result carries the binary character set. MySQL's JSON
-functions and `JSON` columns reject it directly:
-
 ```sql
--- On 0.0.6 and earlier, this fails:
--- ERROR 3144 (22032): Cannot create a JSON value from a string with
--- CHARACTER SET 'binary'
-INSERT INTO documents (id, content, embedding)
-VALUES (1, 'Machine learning', ai_embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning'));
-```
-
-Wrap the call in `CONVERT(... USING utf8mb4)` (or `CAST(... AS CHAR)`) whenever
-the value flows into a `JSON` column or a JSON function:
-
-```sql
--- Create a table to store documents and their embeddings
 CREATE TABLE documents (
     id INT PRIMARY KEY,
     content TEXT,
     embedding JSON
 );
 
--- Generate and store embeddings
-SET @api_key = 'your-google-api-key';
 INSERT INTO documents (id, content, embedding)
 VALUES (1, 'Machine learning is a subset of artificial intelligence',
-        CONVERT(ai_embedding('google', 'gemini-embedding-001', @api_key,
+        CONVERT(ai_embedding('gemini-embed',
                              'Machine learning is a subset of artificial intelligence')
                 USING utf8mb4));
 
--- Inspect what was stored
 SELECT id, JSON_LENGTH(embedding) AS dimensions FROM documents;
 ```
 
-VillageSQL 0.0.7 and later return the correct charset directly, so `CONVERT`
-is no longer required there — but it is harmless to keep, and the example
-above works on every version. Plain `TEXT` columns need no conversion on any
-version — it is only JSON parsing that is affected.
+On VillageSQL 0.0.6 and earlier the result carries the binary character set,
+which `JSON` columns and JSON functions reject, so wrap the call in
+`CONVERT(... USING utf8mb4)` there. VillageSQL 0.0.7 and later return the
+right character set; the conversion is harmless to keep.
 
 ### Supported Providers
 
-Currently supported:
-
-Model names are passed through to the provider unchanged — the extension
+The `provider` field of a registry entry is one of the names below. Model
+names are passed through to the provider unchanged — the extension
 restricts only the provider, not the model. The lists below are the models
 we test and recommend; any other model the provider's API accepts on the same
 endpoint works too, including models released after this extension.
@@ -273,86 +297,47 @@ Connects to Ollama running on `127.0.0.1:11434`. No API key required. Use any mo
 
 ### Function Reference
 
-#### `ai_prompt(provider, model, api_key, prompt)`
-Send a prompt to an AI provider and get a response.
+#### `ai_prompt(model_id, prompt)`
+Send a prompt to a registered model and get its response.
 
 **Parameters:**
-- `provider` (STRING): AI provider name ("anthropic", "google", "openai", "local")
-- `model` (STRING): Model identifier (e.g., "claude-opus-5-5", "gemini-3.5-flash-lite", "gpt-6-luna", "llama3.2")
-- `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
-- `prompt` (STRING): The prompt text to send to the AI
+- `model_id` (STRING): A model ID registered in `vsql_ai.models`
+- `prompt` (STRING): The prompt text to send
 
-**Returns:** STRING - The AI model's response
+**Returns:** STRING - The model's response, or NULL with a warning on failure
 
-**Examples:**
-```sql
--- Anthropic Claude
-SELECT ai_prompt('anthropic', 'claude-opus-5-5', @api_key, 'Hello!');
-
--- Google Gemini
-SELECT ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Hello!');
-
--- OpenAI GPT
-SELECT ai_prompt('openai', 'gpt-6-luna', @api_key, 'Hello!');
-
--- Local Ollama (no API key needed)
-SELECT ai_prompt('local', 'llama3.2', '', 'Hello!');
-```
-
-#### `ai_embedding(provider, model, api_key, text)`
-Generate text embeddings for vector search and similarity analysis.
+#### `ai_embedding(model_id, text)`
+Generate a text embedding with a registered embedding model.
 
 **Parameters:**
-- `provider` (STRING): Embedding provider ("google", "openai", "local")
-- `model` (STRING): Model identifier (e.g., "gemini-embedding-001", "text-embedding-3-small", "nomic-embed-text")
-- `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
-- `text` (STRING): Text to create embedding from
+- `model_id` (STRING): A model ID registered in `vsql_ai.models` whose
+  provider is `google`, `openai` or `local`
+- `text` (STRING): Text to embed
 
-**Returns:** STRING - JSON array of embedding vector (dimensions vary by model)
+**Returns:** STRING - JSON array of the embedding vector (dimensions vary by model)
 
-**Examples:**
-```sql
--- Google Gemini text embeddings
-SELECT ai_embedding('google', 'gemini-embedding-001', @api_key, 'Machine learning is fascinating');
-
--- Result: [0.02646778, 0.019067757, -0.05332306, ...]
-
--- OpenAI text embeddings
-SELECT ai_embedding('openai', 'text-embedding-3-small', @api_key, 'Machine learning is fascinating');
-
--- Local Ollama text embeddings (no API key needed)
-SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascinating');
-```
+#### `vsql_ai.models` (system variable)
+Global, string, default empty. The model registry described in
+[Register models](#4-register-models).
 
 ## Security Considerations
 
 ### API Key Safety
 
-**Important:** API keys passed as function parameters may be visible in query logs, slow query logs, and process lists.
+API keys never appear in `ai_prompt()` or `ai_embedding()` calls. Each call
+reads the key from the MySQL keyring for the length of that request only, so
+keys stay out of query text, the general and slow query logs, the binary log,
+`SHOW PROCESSLIST` and `performance_schema` statement history.
 
-**Best Practices:**
+Storing a key is the one moment it passes through SQL. `keyring_key_store()`
+is an ordinary function call, so its text, key included, is recorded wherever
+statements are: run `SET SESSION sql_log_off = ON` first to keep it out of the
+general log, and remember that `performance_schema` statement history keeps
+the session's recent statements in memory. Keys written to the keyring by
+other tooling never pass through SQL at all.
 
-1. **Use Session Variables** (Recommended):
-   ```sql
-   -- Store API key in session variable
-   SET @api_key = 'sk-ant-your-api-key';
-
-   -- Use variable in queries
-   SELECT ai_prompt('anthropic', 'claude-opus-5-5', @api_key, 'prompt');
-   ```
-   Session variables keep API keys out of query text and reduce exposure in logs.
-
-2. **Avoid Hardcoded Keys**:
-   ```sql
-   -- ❌ BAD: Key visible in logs
-   SELECT ai_prompt('anthropic', 'model', 'sk-ant-12345...', 'prompt');
-
-   -- ✅ GOOD: Use session variable
-   SELECT ai_prompt('anthropic', 'model', @api_key, 'prompt');
-   ```
-
-3. **Shell Environment Variables** (Future Enhancement):
-   Future versions may support reading API keys directly from shell environment variables (e.g., `$ANTHROPIC_API_KEY`) for additional security.
+Error messages name the keyring data ID and owner that were looked up, never
+any part of a key.
 
 ### Network Security
 
@@ -390,14 +375,12 @@ issues one request per row, serially. There is no batching or asynchronous
 execution. Materialize results into a column rather than recomputing them per
 query, and raise `max_execution_time` for multi-row statements.
 
-**Embedding output needs an explicit conversion for JSON use on 0.0.6 and
-earlier.** There, the returned string carries the binary character set, so
-`JSON_VALID()`, `JSON_LENGTH()`, and inserts into a `JSON` column all reject
-it until you wrap the call in `CONVERT(... USING utf8mb4)`. Fixed in
-VillageSQL 0.0.7. See
-[Storing Embeddings in a JSON Column](#storing-embeddings-in-a-json-column).
+**Needs preview extensions and a keyring.** The keyring and system variable
+capabilities `vsql_ai` uses are VillageSQL preview capabilities, so
+`vsql_allow_preview_extensions` must be ON, and they may change in a future
+server release. Cloud models also need a keyring component.
 
-**No embeddings from Anthropic.** `ai_embedding('anthropic', ...)` returns a
+**No embeddings from Anthropic.** `ai_embedding()` on an `anthropic` model returns a
 warning and NULL — Anthropic publishes no embeddings endpoint. Use `google`,
 `openai`, or `local`.
 
@@ -421,6 +404,23 @@ The tests run `INSTALL EXTENSION vsql_ai`, which loads `vsql_ai.veb` from the
 server's VEB directory. Run `make install` after every build so the tests
 exercise your latest changes; otherwise they fail with `VEB file not found` or
 silently test an older build.
+
+On a packaged server, `lib/veb/` already contains a bundled `vsql_ai.veb`, and
+MTR copies the bundled file in preference to one passed with
+`--veb-source-dir`. To test your own build there, give the server a VEB
+directory that holds it:
+
+```bash
+mkdir -p /tmp/vebdir
+cp <server>/lib/veb/*.veb /tmp/vebdir/
+cp build/vsql_ai.veb /tmp/vebdir/
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test \
+    --mysqld=--veb-dir=/tmp/vebdir
+```
+
+The cloud provider tests and `ai_registry` restart the server with
+`component_keyring_file` (configured in the test's data directory), store the
+API key with `keyring_key_store()`, and remove it before finishing.
 
 **Linux:**
 ```bash
@@ -575,10 +575,13 @@ The extension includes live API tests for each provider. Each test will skip liv
 
 **Security Note:** All tests automatically:
 - Skip live API calls if the environment variable is not set
-- Hide API keys from test output using `--disable_query_log`
+- Keep API keys out of the result file (`--disable_query_log`) and out of the
+  server's general query log (`sql_log_off`)
 - Validate that responses contain expected content
 
-**Note:** The `error_handling` test does not require an API key and only validates input validation and error handling.
+**Note:** The `ai_registry` and `error_handling` tests need no API key and no
+network access; they cover the registry, the keyring lookups and argument
+validation.
 
 ## Development
 
@@ -588,6 +591,7 @@ vsql-ai/
 ├── src/
 │   ├── ai_functions.cc      # VEF function implementations and registration
 │   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google, Local)
+│   ├── model_registry.h/.cc # Parsing and validation of vsql_ai.models
 │   └── http_client.h/.cc    # HTTP client wrapper for API calls
 ├── include/
 │   ├── httplib.h            # cpp-httplib single header
@@ -595,6 +599,7 @@ vsql-ai/
 ├── cmake/
 │   └── FindVillageSQL.cmake # CMake module to locate VillageSQL SDK
 ├── mysql-test/
+│   ├── include/             # Keyring setup/teardown for tests
 │   ├── t/                   # MTR test files
 │   └── r/                   # MTR expected results
 ├── manifest.json            # VEB package manifest
@@ -618,11 +623,11 @@ The extension uses:
 - ✅ Anthropic Claude integration
 - ✅ Google Gemini integration
 - ✅ Embedding generation (Google Gemini)
-- ✅ Session variable support for API keys
+- ✅ API keys in the MySQL keyring
+- ✅ Model registry (`vsql_ai.models`)
 - ✅ OpenAI GPT integration
 - ✅ OpenAI embeddings
 - ✅ Local Ollama provider (no API key required)
-- ⏳ Shell environment variable support for API keys
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs
 - ⏳ Token counting utilities

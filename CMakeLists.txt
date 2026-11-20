@@ -67,6 +67,7 @@ add_library(ai_ext SHARED
     src/http_client.cc
     src/ai_providers.cc
     src/ai_functions.cc
+    src/model_registry.cc
 )
 
 # Include directories

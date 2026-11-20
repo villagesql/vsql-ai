@@ -1,30 +1,47 @@
 # Test Google provider (Gemini models) for vsql_ai extension
 
-# Skip if GEMINI_API_KEY is not set
 if (!$GEMINI_API_KEY) {
   skip Requires GEMINI_API_KEY environment variable;
 }
 
-# Install extension
+--source ../include/keyring_setup.inc
 INSTALL EXTENSION vsql_ai;
 
+# Store the API key in the keyring. A key stored with keyring_key_store() is
+# owned by the account that stored it. The statement carries the key, so it
+# is kept out of the result file and, with sql_log_off, out of the general
+# query log that MTR enables.
+--disable_query_log
+--disable_result_log
+SET SESSION sql_log_off = ON;
+--eval SELECT keyring_key_store('test_google_key', 'SECRET', '$GEMINI_API_KEY')
+SET SESSION sql_log_off = OFF;
+--enable_result_log
+--enable_query_log
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "google", "model": "gemini-3.5-flash-lite",
+              "key_id": "test_google_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "google", "model": "gemini-3.5-flash-lite",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+
 # Test with invalid API key - should produce a warning
-SELECT ai_prompt('google', 'gemini-3.5-flash-lite', 'invalid_key_12345', 'Hello');
+SELECT ai_prompt('bad_key', 'Hello');
 SHOW WARNINGS;
 
-# Test with real API key
 --echo # Running live API test
 
-# Hide the API key from the result file
---disable_query_log
---eval SET @api_key = '$GEMINI_API_KEY'
---enable_query_log
-
-# Simple prompt test - Gemini should respond with SUCCESS
-SELECT ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
+# Simple prompt test - the model should respond with SUCCESS
+SELECT ai_prompt('live', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS contains_success;
 
 # Verify we got a non-empty response
-SELECT LENGTH(ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Reply with just: OK')) > 0 AS got_response;
+SELECT LENGTH(ai_prompt('live', 'Reply with just: OK')) > 0 AS got_response;
 
 # Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_google_key');
+SELECT keyring_key_remove('test_invalid_key');
 UNINSTALL EXTENSION vsql_ai;
+--source ../include/keyring_teardown.inc

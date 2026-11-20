@@ -7,24 +7,26 @@ if (!$OLLAMA_EMBED_MODEL) {
 # Install extension
 INSTALL EXTENSION vsql_ai;
 
+# The local provider needs no API key, so its models need no key_id and no
+# keyring. The model name comes from the environment, so it is hidden.
+--disable_query_log
+--eval SET GLOBAL vsql_ai.models = '{"live": {"provider": "local", "model": "$OLLAMA_EMBED_MODEL"}, "missing": {"provider": "local", "model": "nomic-embed-text"}}'
+--enable_query_log
+
 # A model that has not been pulled produces a warning and NULL, carrying
 # Ollama's own "model not found" text. Ollama has reworded that text across
 # versions (quote style, a "try pulling it first" suffix), so it is
 # normalized to keep the result independent of the installed Ollama.
 --replace_regex /model .nomic-embed-text. not found.*/model 'nomic-embed-text' not found/
-SELECT ai_embedding('local', 'nomic-embed-text', '', 'Hello');
+SELECT ai_embedding('missing', 'Hello');
 --replace_regex /model .nomic-embed-text. not found.*/model 'nomic-embed-text' not found/
 SHOW WARNINGS;
 
 --echo # Running live API test
 
---disable_query_log
---eval SET @model = '$OLLAMA_EMBED_MODEL'
---enable_query_log
-
 # Create embedding for simple text
 --disable_query_log
-SET @embedding = ai_embedding('local', @model, '', 'Hello world');
+SET @embedding = ai_embedding('live', 'Hello world');
 --enable_query_log
 
 # Verify we got a JSON array back (starts with [ and ends with ])
@@ -35,10 +37,11 @@ SELECT LENGTH(@embedding) > 10 AS got_embedding;
 
 # Verify we can create embeddings for different text
 --disable_query_log
-SET @embedding2 = ai_embedding('local', @model, '', 'Machine learning');
+SET @embedding2 = ai_embedding('live', 'Machine learning');
 --enable_query_log
 
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 
 # Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

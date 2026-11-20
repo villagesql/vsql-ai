@@ -1,0 +1,190 @@
+INSTALL EXTENSION vsql_ai;
+#
+# The registry is a system variable that starts empty
+#
+SHOW GLOBAL VARIABLES LIKE 'vsql_ai.%';
+Variable_name	Value
+vsql_ai.models	
+SELECT ai_prompt('claude', 'Hello') IS NULL AS empty_registry_is_null;
+empty_registry_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'claude' is not registered: vsql_ai.models is empty
+#
+# NULL in either argument yields NULL with no warning; empty is rejected
+#
+SELECT ai_prompt(NULL, 'Hello') IS NULL AS null_model_id_is_null;
+null_model_id_is_null
+1
+SELECT ai_prompt('claude', NULL) IS NULL AS null_prompt_is_null;
+null_prompt_is_null
+1
+SELECT ai_embedding(NULL, 'Hello') IS NULL AS null_embed_model_id_is_null;
+null_embed_model_id_is_null
+1
+SELECT ai_embedding('claude', NULL) IS NULL AS null_text_is_null;
+null_text_is_null
+1
+SELECT ai_prompt('', 'Hello') IS NULL AS empty_model_id_is_null;
+empty_model_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model ID cannot be empty
+SELECT ai_prompt('claude', '') IS NULL AS empty_prompt_is_null;
+empty_prompt_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Prompt text cannot be empty
+SELECT ai_embedding('', 'Hello') IS NULL AS empty_embed_model_id_is_null;
+empty_embed_model_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': Model ID cannot be empty
+SELECT ai_embedding('claude', '') IS NULL AS empty_text_is_null;
+empty_text_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': Text cannot be empty
+#
+# A malformed registry is reported at call time
+#
+SET GLOBAL vsql_ai.models = '{not json';
+SELECT ai_prompt('claude', 'Hello') IS NULL AS invalid_json_is_null;
+invalid_json_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models is not valid JSON
+SET GLOBAL vsql_ai.models = '["claude"]';
+SELECT ai_prompt('claude', 'Hello') IS NULL AS not_object_is_null;
+not_object_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models must be a JSON object keyed by model ID
+#
+# Entries are validated when they are used
+#
+SET GLOBAL vsql_ai.models = '{
+  "claude":      {"provider": "anthropic", "model": "claude-opus-5-5",
+                  "key_id": "anthropic_key", "key_owner": "root@localhost"},
+  "local":       {"provider": "local", "model": "llama3.2"},
+  "not_object":  "anthropic",
+  "typo":        {"provider": "anthropic", "model": "m", "keyid": "k"},
+  "number":      {"provider": "anthropic", "model": 5, "key_id": "k"},
+  "no_provider": {"model": "m", "key_id": "k"},
+  "no_model":    {"provider": "anthropic", "key_id": "k"},
+  "bad_provider":{"provider": "acme", "model": "m", "key_id": "k"},
+  "no_key":      {"provider": "openai", "model": "gpt-6-luna"},
+  "internal":    {"provider": "google", "model": "gemini-3.5-flash-lite",
+                  "key_id": "gemini_key"}
+}';
+SELECT ai_prompt('unknown', 'Hello') IS NULL AS unregistered_is_null;
+unregistered_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unknown' is not registered in vsql_ai.models
+SELECT ai_prompt('not_object', 'Hello') IS NULL AS not_object_entry_is_null;
+not_object_entry_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: model 'not_object' must be a JSON object
+SELECT ai_prompt('typo', 'Hello') IS NULL AS unknown_field_is_null;
+unknown_field_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: unknown field 'keyid' in model 'typo'
+SELECT ai_prompt('number', 'Hello') IS NULL AS non_string_is_null;
+non_string_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: 'model' of model 'number' must be a string
+SELECT ai_prompt('no_provider', 'Hello') IS NULL AS no_provider_is_null;
+no_provider_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: model 'no_provider' has no provider
+SELECT ai_prompt('no_model', 'Hello') IS NULL AS no_model_is_null;
+no_model_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: model 'no_model' has no model name
+SELECT ai_prompt('bad_provider', 'Hello') IS NULL AS bad_provider_is_null;
+bad_provider_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': vsql_ai.models: model 'bad_provider' has unknown provider 'acme'
+SELECT ai_embedding('no_key', 'Hello') IS NULL AS no_key_id_is_null;
+no_key_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding': vsql_ai.models: model 'no_key' needs key_id, the keyring ID of its API key
+#
+# Model IDs are case-sensitive
+#
+SELECT ai_prompt('Claude', 'Hello') IS NULL AS wrong_case_is_null;
+wrong_case_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'Claude' is not registered in vsql_ai.models
+#
+# Without a keyring component, a model that needs a key says so
+#
+SELECT ai_prompt('claude', 'Hello') IS NULL AS no_keyring_is_null;
+no_keyring_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': No keyring component is installed; vsql_ai reads API keys from the MySQL keyring
+#
+# Changing the registry needs SYSTEM_VARIABLES_ADMIN; reading it does not
+#
+CREATE USER ai_reader@localhost;
+SELECT @@vsql_ai.models LIKE '%claude-opus-5-5%' AS reader_sees_registry;
+reader_sees_registry
+1
+SET GLOBAL vsql_ai.models = '{}';
+ERROR 42000: Access denied; you need (at least one of) the SUPER or SYSTEM_VARIABLES_ADMIN privilege(s) for this operation
+DROP USER ai_reader@localhost;
+#
+# With a keyring, a missing secret names what was looked for
+#
+UNINSTALL EXTENSION vsql_ai;
+SELECT STATUS_VALUE AS keyring_status
+FROM performance_schema.keyring_component_status
+WHERE STATUS_KEY = 'Component_status';
+keyring_status
+Active
+INSTALL EXTENSION vsql_ai;
+SET GLOBAL vsql_ai.models = '{
+  "claude":   {"provider": "anthropic", "model": "claude-opus-5-5",
+               "key_id": "anthropic_key", "key_owner": "root@localhost"},
+  "internal": {"provider": "google", "model": "gemini-3.5-flash-lite",
+               "key_id": "gemini_key"}
+}';
+SELECT ai_prompt('claude', 'Hello') IS NULL AS missing_owned_key_is_null;
+missing_owned_key_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Keyring has no secret 'anthropic_key' owned by 'root@localhost'
+SELECT ai_prompt('internal', 'Hello') IS NULL AS missing_internal_key_is_null;
+missing_internal_key_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Keyring has no internal key 'gemini_key'. A key stored with keyring_key_store() belongs to the account that stored it; set key_owner to that account
+#
+# A key stored by another account is not visible under this owner
+#
+SELECT keyring_key_store('anthropic_key', 'SECRET', 'not-a-real-key');
+keyring_key_store('anthropic_key', 'SECRET', 'not-a-real-key')
+1
+SET GLOBAL vsql_ai.models = '{
+  "claude": {"provider": "anthropic", "model": "claude-opus-5-5",
+             "key_id": "anthropic_key", "key_owner": "someone@localhost"}
+}';
+SELECT ai_prompt('claude', 'Hello') IS NULL AS other_owner_is_null;
+other_owner_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Keyring has no secret 'anthropic_key' owned by 'someone@localhost'
+SELECT keyring_key_remove('anthropic_key');
+keyring_key_remove('anthropic_key')
+1
+UNINSTALL EXTENSION vsql_ai;
