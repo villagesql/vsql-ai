@@ -473,8 +473,10 @@ namespace {
 
 // Report an exception as a warning. Building the message allocates, so a
 // second failure (bad_alloc, or anything thrown while unwinding) falls back to
-// a fixed string — out.warning() on a literal cannot throw.
-void report_exception(const std::exception& e, vsql::StringResult out) {
+// a fixed string — out.warning() on a literal cannot throw. Templated because
+// ai_embedding_binary returns a BinaryResult rather than a StringResult.
+template <typename Result>
+void report_exception(const std::exception& e, Result out) {
   try {
     out.warning(truncate_utf8(std::string("Internal error: ") + e.what(),
                               kMaxWarningBytes));
@@ -517,12 +519,7 @@ void embedding_binary_impl(vsql::StringArg model_id_arg,
   try {
     embedding_binary_body(model_id_arg, text_arg, out);
   } catch (const std::exception& e) {
-    try {
-      out.warning(truncate_utf8(std::string("Internal error: ") + e.what(),
-                                kMaxWarningBytes));
-    } catch (...) {
-      out.warning("Internal error");
-    }
+    report_exception(e, out);
   } catch (...) {
     out.warning("Internal error");
   }
