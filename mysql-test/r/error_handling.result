@@ -1,8 +1,10 @@
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SET GLOBAL vsql_ai.models = '{"local": {"provider": "local", "model": "no-such-model"}}';
 SELECT ai_prompt('local', _binary 0xFF) IS NULL AS invalid_utf8_prompt_is_null;
 ERROR HY000: Cannot convert string '\xFF' from binary to utf8mb4
 SELECT ai_embedding('local', _binary 0xFF) IS NULL AS invalid_utf8_embed_is_null;
 ERROR HY000: Cannot convert string '\xFF' from binary to utf8mb4
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

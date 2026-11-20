@@ -74,6 +74,7 @@ add_library(ai_ext SHARED
     src/decisions.cc
     src/embedding_format.cc
     src/raw_request.cc
+    src/privilege.cc
 )
 
 # Include directories
@@ -103,6 +104,7 @@ if(VSQL_AI_BUILD_TESTS)
         src/decisions.cc
         src/embedding_format.cc
         src/raw_request.cc
+        src/privilege.cc
     )
     target_include_directories(vsql_ai_unittest PRIVATE
         ${VillageSQLExtensionFramework_INCLUDE_DIR}

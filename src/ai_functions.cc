@@ -25,6 +25,7 @@
 #include "ai_providers.h"
 #include "embedding_format.h"
 #include "model_registry.h"
+#include "privilege.h"
 
 namespace vsql_ai {
 
@@ -62,9 +63,10 @@ void on_models_change(vsql::preview_sys_var::SysVarChange change) {
 // variable is back at its default but a call would still see the old models.
 // on_init deliberately leaves the cache alone, because a persisted value is
 // applied (and on_models_change run) during registration, before on_init.
-void on_extension_init() {}
+void on_extension_init() { register_privilege(); }
 
 void on_extension_deinit() {
+  unregister_privilege();
   std::lock_guard<std::mutex> lock(g_registry_mutex);
   g_registry.clear();
   g_registry_known = false;
@@ -79,6 +81,10 @@ auto g_sys_vars = sv::make_capability({
                  "owner (key_owner) of its API key",
                  &g_models, "")
         .on_change<&on_models_change>(),
+    sv::make_bool("require_privilege",
+                  "Require the VSQL_AI_USER privilege to call vsql_ai "
+                  "functions. Turn OFF to let every account call them",
+                  &g_require_privilege, true),
 });
 
 vsql::preview_keyring::KeyringCapability g_keyring;
@@ -179,6 +185,14 @@ bool resolve_model(const std::string& model_id, ResolvedModel* resolved,
 // exception crossing the extension ABI boundary would terminate the process.
 void prompt_body(vsql::StringArg model_id_arg, vsql::StringArg prompt_arg,
                  vsql::StringResult out) {
+  // Before anything else, NULL arguments included: a refused caller learns
+  // nothing about the registry or the provider.
+  std::string denied;
+  if (!caller_may_use(&denied)) {
+    out.error(denied);
+    return;
+  }
+
   if (model_id_arg.is_null() || prompt_arg.is_null()) {
     out.set_null();
     return;
@@ -229,6 +243,14 @@ void prompt_body(vsql::StringArg model_id_arg, vsql::StringArg prompt_arg,
 // prompt_body above.
 void embedding_body(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
                     vsql::StringResult out) {
+  // Before anything else, NULL arguments included: a refused caller learns
+  // nothing about the registry or the provider.
+  std::string denied;
+  if (!caller_may_use(&denied)) {
+    out.error(denied);
+    return;
+  }
+
   if (model_id_arg.is_null() || text_arg.is_null()) {
     out.set_null();
     return;
@@ -274,6 +296,14 @@ void embedding_body(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
 // embedding_binary_impl for the same reason as prompt_body above.
 void embedding_binary_body(vsql::StringArg model_id_arg,
                            vsql::StringArg text_arg, vsql::BinaryResult out) {
+  // Before anything else, NULL arguments included: a refused caller learns
+  // nothing about the registry or the provider.
+  std::string denied;
+  if (!caller_may_use(&denied)) {
+    out.error(denied);
+    return;
+  }
+
   if (model_id_arg.is_null() || text_arg.is_null()) {
     out.set_null();
     return;
@@ -326,6 +356,14 @@ void embedding_binary_body(vsql::StringArg model_id_arg,
 // model's native endpoint, with the response returned as is.
 void request_body(vsql::StringArg model_id_arg, vsql::StringArg body_arg,
                   vsql::StringResult out) {
+  // Before anything else, NULL arguments included: a refused caller learns
+  // nothing about the registry or the provider.
+  std::string denied;
+  if (!caller_may_use(&denied)) {
+    out.error(denied);
+    return;
+  }
+
   if (model_id_arg.is_null() || body_arg.is_null()) {
     out.set_null();
     return;
@@ -371,6 +409,14 @@ void request_body(vsql::StringArg model_id_arg, vsql::StringArg body_arg,
 // prompt_body above.
 void decision_body(vsql::StringArg model_id_arg, vsql::StringArg input_arg,
                    vsql::StringArg questions_arg, vsql::StringResult out) {
+  // Before anything else, NULL arguments included: a refused caller learns
+  // nothing about the registry or the provider.
+  std::string denied;
+  if (!caller_may_use(&denied)) {
+    out.error(denied);
+    return;
+  }
+
   if (model_id_arg.is_null() || input_arg.is_null() ||
       questions_arg.is_null()) {
     out.set_null();
@@ -514,6 +560,7 @@ VEF_GENERATE_ENTRY_POINTS(
         .on_init<&vsql_ai::on_extension_init>()
         .on_deinit<&vsql_ai::on_extension_deinit>()
         .with(vsql_ai::g_sys_vars)
+        .with(vsql_ai::g_mysql_services)
         .with(vsql_ai::g_keyring)
         .func(vsql::make_func<&vsql_ai::prompt_impl>("ai_prompt")
                   .returns(vsql::STRING)

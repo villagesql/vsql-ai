@@ -1,4 +1,5 @@
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SELECT ai_prompt('missing', 'Hello');
 ai_prompt('missing', 'Hello')
 NULL
@@ -21,4 +22,5 @@ JSON_UNQUOTE(JSON_EXTRACT(@response, '$.message.content')) LIKE '%SUCCESS%' AS c
 valid_json	done	contains_success
 1	true	1
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

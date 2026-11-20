@@ -6,6 +6,8 @@ if (!$OPENAI_API_KEY) {
 
 --source ../include/keyring_setup.inc
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 # Store the API key in the keyring. A key stored with keyring_key_store() is
 # owned by the account that stored it. The statement carries the key, so it
@@ -61,5 +63,6 @@ SELECT LENGTH(@bin) = 4 * JSON_LENGTH(@json) AS four_bytes_per_dimension,
 SET GLOBAL vsql_ai.models = DEFAULT;
 SELECT keyring_key_remove('test_openai_key');
 SELECT keyring_key_remove('test_invalid_key');
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 --source ../include/keyring_teardown.inc

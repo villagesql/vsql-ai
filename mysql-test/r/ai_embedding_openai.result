@@ -4,6 +4,7 @@ WHERE STATUS_KEY = 'Component_status';
 keyring_status
 Active
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
 keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345')
 1
@@ -44,4 +45,5 @@ keyring_key_remove('test_openai_key')
 SELECT keyring_key_remove('test_invalid_key');
 keyring_key_remove('test_invalid_key')
 1
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

@@ -1,4 +1,5 @@
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SET GLOBAL vsql_ai.models = '{
   "local":   {"provider": "local", "model": "m"},
   "decider": {"provider": "google", "model": "gemini-decision-1",
@@ -139,4 +140,5 @@ no_decisions_api
 Warnings:
 Warning	3200	VDF error in function 'ai_decision': This provider has no decisions API; use google, openai or typesafe
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

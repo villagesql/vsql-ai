@@ -2,6 +2,8 @@
 # every call here fails before a request would be sent.
 
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 SET GLOBAL vsql_ai.models = '{
   "local":   {"provider": "local", "model": "m"},
@@ -62,4 +64,5 @@ SELECT ai_decision('decider', 'text', @q) IS NULL AS no_keyring_is_null;
 SELECT ai_decision('local', 'text', @q) IS NULL AS no_decisions_api;
 
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

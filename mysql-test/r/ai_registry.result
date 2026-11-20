@@ -1,10 +1,12 @@
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 #
 # The registry is a system variable that starts empty
 #
 SHOW GLOBAL VARIABLES LIKE 'vsql_ai.%';
 Variable_name	Value
 vsql_ai.models	
+vsql_ai.require_privilege	ON
 SELECT ai_prompt('claude', 'Hello') IS NULL AS empty_registry_is_null;
 empty_registry_is_null
 1
@@ -157,12 +159,14 @@ SELECT COUNT(*) AS persisted_before FROM performance_schema.persisted_variables
 WHERE VARIABLE_NAME = 'vsql_ai.models';
 persisted_before
 1
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 SELECT COUNT(*) AS persisted_after FROM performance_schema.persisted_variables
 WHERE VARIABLE_NAME = 'vsql_ai.models';
 persisted_after
 0
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SELECT @@vsql_ai.models = '' AS registry_empty_after_reinstall;
 registry_empty_after_reinstall
 1
@@ -185,6 +189,7 @@ DROP USER ai_reader@localhost;
 #
 # With a keyring, a missing secret names what was looked for
 #
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 SELECT STATUS_VALUE AS keyring_status
 FROM performance_schema.keyring_component_status
@@ -192,6 +197,7 @@ WHERE STATUS_KEY = 'Component_status';
 keyring_status
 Active
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SET GLOBAL vsql_ai.models = '{
   "claude":   {"provider": "anthropic", "model": "claude-opus-5-5",
                "key_id": "anthropic_key", "key_owner": "root@localhost"},
@@ -226,4 +232,5 @@ Warning	3200	VDF error in function 'ai_prompt': Keyring has no secret 'anthropic
 SELECT keyring_key_remove('anthropic_key');
 keyring_key_remove('anthropic_key')
 1
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

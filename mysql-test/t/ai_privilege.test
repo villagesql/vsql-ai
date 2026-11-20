@@ -1,0 +1,93 @@
+# The VSQL_AI_USER privilege gates every vsql_ai function. Needs no network
+# or keyring: allowed calls stop at an unregistered model.
+
+INSTALL EXTENSION vsql_ai;
+
+--echo #
+--echo # The check is on by default, and even root needs the grant: MySQL does
+--echo # not give existing accounts a newly registered dynamic privilege
+--echo #
+SELECT @@vsql_ai.require_privilege;
+--error ER_UDF_ERROR
+SELECT ai_prompt('unregistered', 'Hello');
+--error ER_UDF_ERROR
+SELECT ai_embedding('unregistered', 'Hello');
+--error ER_UDF_ERROR
+SELECT ai_embedding_binary('unregistered', 'Hello');
+--error ER_UDF_ERROR
+SELECT ai_request('unregistered', '{}');
+--error ER_UDF_ERROR
+SELECT ai_decision('unregistered', 'Hello', '{}');
+--echo # NULL arguments are refused too
+--error ER_UDF_ERROR
+SELECT ai_prompt(NULL, NULL);
+
+--echo #
+--echo # With the grant, calls go on to the registry
+--echo #
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS root_allowed;
+SELECT ai_embedding_binary('unregistered', 'Hello') IS NULL AS root_allowed_binary;
+
+--echo #
+--echo # Another account is refused until granted, and cannot turn the check off
+--echo #
+CREATE USER ai_caller@localhost;
+GRANT EXECUTE ON test.* TO ai_caller@localhost;
+CREATE DEFINER=root@localhost PROCEDURE test.ai_as_definer()
+  SQL SECURITY DEFINER SELECT ai_prompt('unregistered', 'Hello') IS NULL AS as_definer;
+CREATE DEFINER=root@localhost PROCEDURE test.ai_as_invoker()
+  SQL SECURITY INVOKER SELECT ai_prompt('unregistered', 'Hello') IS NULL AS as_invoker;
+
+--connect (caller, localhost, ai_caller,,test)
+--error ER_UDF_ERROR
+SELECT ai_prompt('unregistered', 'Hello');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET GLOBAL vsql_ai.require_privilege = OFF;
+--echo # A SQL SECURITY DEFINER routine runs with its definer's privileges
+CALL test.ai_as_definer();
+--error ER_UDF_ERROR
+CALL test.ai_as_invoker();
+--connection default
+
+GRANT VSQL_AI_USER ON *.* TO ai_caller@localhost;
+--connection caller
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS caller_allowed;
+CALL test.ai_as_invoker();
+--connection default
+REVOKE VSQL_AI_USER ON *.* FROM ai_caller@localhost;
+
+--echo #
+--echo # vsql_ai.require_privilege = OFF lets every account call the functions
+--echo #
+SET GLOBAL vsql_ai.require_privilege = OFF;
+--connection caller
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS allowed_when_off;
+--connection default
+SET GLOBAL vsql_ai.require_privilege = DEFAULT;
+--connection caller
+--error ER_UDF_ERROR
+SELECT ai_prompt('unregistered', 'Hello');
+--connection default
+--disconnect caller
+# A disconnect finishes in the background; UNINSTALL refuses while that
+# session still holds ai_prompt, so wait for it to close.
+let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.processlist
+                      WHERE user = 'ai_caller';
+--source include/wait_condition.inc
+
+--echo #
+--echo # A grant outlives an uninstall and applies again after reinstalling
+--echo #
+UNINSTALL EXTENSION vsql_ai;
+SELECT COUNT(*) AS grant_kept FROM mysql.global_grants
+ WHERE USER = 'root' AND PRIV = 'VSQL_AI_USER';
+INSTALL EXTENSION vsql_ai;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS root_allowed_after_reinstall;
+
+# Cleanup
+DROP PROCEDURE test.ai_as_definer;
+DROP PROCEDURE test.ai_as_invoker;
+DROP USER ai_caller@localhost;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
+UNINSTALL EXTENSION vsql_ai;

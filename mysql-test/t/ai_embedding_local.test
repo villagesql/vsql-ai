@@ -6,6 +6,8 @@ if (!$OLLAMA_EMBED_MODEL) {
 
 # Install extension
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 # The local provider needs no API key, so its models need no key_id and no
 # keyring. The model name comes from the environment, so it is hidden.
@@ -49,4 +51,5 @@ SELECT LENGTH(@bin) = 4 * JSON_LENGTH(@json) AS four_bytes_per_dimension,
 
 # Cleanup
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

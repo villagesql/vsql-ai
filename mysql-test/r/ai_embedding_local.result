@@ -1,4 +1,5 @@
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SELECT ai_embedding('missing', 'Hello');
 ai_embedding('missing', 'Hello')
 NULL
@@ -24,4 +25,5 @@ CHARSET(@bin) AS charset;
 four_bytes_per_dimension	charset
 1	binary
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
