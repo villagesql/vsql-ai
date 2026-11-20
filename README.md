@@ -18,11 +18,16 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 If you installed VillageSQL with the install script, the Docker image, or a
 release tarball, `vsql_ai.veb` is already in the server's `lib/veb/`
 directory — this extension is bundled with the server. There is nothing to build
-or download:
+or download. It uses VillageSQL preview capabilities (the MySQL keyring and its
+own system variable), so the server must allow preview extensions first:
 
 ```sql
+SET PERSIST vsql_allow_preview_extensions = ON;
 INSTALL EXTENSION vsql_ai;
 ```
+
+Without that setting, `INSTALL EXTENSION` fails. Cloud models also need a
+keyring component; see [Setup](#setup).
 
 Build from source only if you built the server from source without the bundled
 extensions, or if you are working on this extension itself.

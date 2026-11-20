@@ -132,9 +132,11 @@ The extension includes test files using the MySQL Test Runner (MTR) framework:
 
 ## Extension Installation
 
-After building and installing the VEB file with `make install`, load the extension in VillageSQL:
+After building and installing the VEB file with `make install`, load the extension in VillageSQL.
+It uses preview capabilities (keyring, sys var), so preview extensions must be allowed first:
 
 ```sql
+SET PERSIST vsql_allow_preview_extensions = ON;
 INSTALL EXTENSION vsql_ai;
 ```
 
