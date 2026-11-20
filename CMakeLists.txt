@@ -22,7 +22,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Extension name
 set(EXTENSION_NAME "vsql_ai")
 
-# Find VillageSQL SDK
+# Find VillageSQL SDK.
+# The tests expect protocol 4, where a STRING argument is utf8mb4. Its headers
+# ship in the SDK's include-dev/ tree until protocol 4 is stable.
+set(VSQL_USE_DEV_ABI ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(VillageSQL REQUIRED)
 
@@ -73,6 +76,9 @@ add_library(ai_ext SHARED
 # Include directories
 target_include_directories(ai_ext PRIVATE
     ${VillageSQLExtensionFramework_INCLUDE_DIR}
+)
+# SYSTEM keeps warnings inside the vendored headers out of our build output
+target_include_directories(ai_ext SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include  # For cpp-httplib and nlohmann/json
 )
 

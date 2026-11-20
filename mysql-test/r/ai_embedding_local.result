@@ -3,10 +3,10 @@ SELECT ai_embedding('missing', 'Hello');
 ai_embedding('missing', 'Hello')
 NULL
 Warnings:
-Warning	3200	VDF error in function 'ai_embedding': model 'nomic-embed-text' not found
+Warning	3200	VDF error in function 'ai_embedding': model no-such-model-vsql-test not found
 SHOW WARNINGS;
 Level	Code	Message
-Warning	3200	VDF error in function 'ai_embedding': model 'nomic-embed-text' not found
+Warning	3200	VDF error in function 'ai_embedding': model no-such-model-vsql-test not found
 # Running live API test
 SELECT @embedding LIKE '[%' AND @embedding LIKE '%]' AS is_json_array;
 is_json_array
