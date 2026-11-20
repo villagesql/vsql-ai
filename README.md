@@ -8,7 +8,8 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 
 - **AI Prompting**: Send prompts to AI models directly from SQL queries
 - **Multiple Providers**: Support for Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama
-- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama
+- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama; store them as JSON or in a [vsql-vector](https://github.com/villagesql/vsql-vector) `SVECTOR` column
+- **Decisions**: Ask decision models (Gemini Decision, TypeSafe Jev, OpenAI) yes/no, multiple-choice and scored questions and get calibrated probabilities back as JSON
 - **High Performance**: Efficient C++ implementation with minimal overhead
 - **Secure**: API keys stay in the MySQL keyring, never in SQL text; HTTPS with certificate verification
 - **Model Registry**: Administrators register models once; queries name a model ID
@@ -194,13 +195,15 @@ SET PERSIST vsql_ai.models = '{
                    "key_id": "gemini_key", "key_owner": "root@localhost"},
   "gpt":          {"provider": "openai", "model": "gpt-6-luna",
                    "key_id": "openai_key", "key_owner": "root@localhost"},
+  "jev":          {"provider": "typesafe", "model": "jev-latest",
+                   "key_id": "typesafe_key", "key_owner": "root@localhost"},
   "llama":        {"provider": "local", "model": "llama3.2"}
 }';
 ```
 
 | Field | Required | Meaning |
 |---|---|---|
-| `provider` | yes | `anthropic`, `google`, `openai` or `local` |
+| `provider` | yes | `anthropic`, `google`, `openai`, `typesafe` or `local` |
 | `model` | yes | The provider's model name, passed through unchanged |
 | `key_id` | except `local` | Keyring data ID of the API key |
 | `key_owner` | no | Keyring owner of the key; omit for an internal key |
@@ -283,6 +286,121 @@ which `JSON` columns and JSON functions reject, so wrap the call in
 `CONVERT(... USING utf8mb4)` there. VillageSQL 0.0.7 and later return the
 right character set; the conversion is harmless to keep.
 
+#### Storing Embeddings in a Vector Column
+
+For similarity search, store embeddings in an `SVECTOR` column from the
+[vsql-vector](https://github.com/villagesql/vsql-vector) extension instead of
+JSON. `SVECTOR(n)` holds `n` float32 values in InnoDB-managed columnar
+storage, and vsql-vector provides `COSINE_DISTANCE`, `L2_DISTANCE`,
+`L1_DISTANCE` and `INNER_PRODUCT`. It is not bundled with the server: build
+and install it from its repository, and note that its README describes it as
+under active development and not yet recommended for production.
+
+Declare the column with the model's dimension (1536 for
+`text-embedding-3-small`, 3072 for `gemini-embedding-001`; vsql-vector allows
+up to 3072). `SVECTOR` accepts the JSON array `ai_embedding()` returns, but
+only as a value, not as an expression: vsql-vector cannot yet convert a
+function result into a typed vector, so `INSERT ... VALUES (..., ai_embedding(...))`
+fails with "cannot implicitly cast string expression". Assign the embedding to
+a user variable first:
+
+```sql
+INSTALL EXTENSION vsql_vector;
+
+-- 'embed' is a registered model ID for OpenAI's text-embedding-3-small:
+--   "embed": {"provider": "openai", "model": "text-embedding-3-small",
+--             "key_id": "openai_key", "key_owner": "root@localhost"}
+CREATE TABLE docs (
+    id        INT PRIMARY KEY,
+    body      TEXT,
+    embedding SVECTOR(1536)
+);
+
+SET @e = ai_embedding('embed', 'How do I reset my password?');
+INSERT INTO docs VALUES (1, 'How do I reset my password?', @e);
+
+SET @e = ai_embedding('embed', 'Best pizza toppings for a party');
+INSERT INTO docs VALUES (2, 'Best pizza toppings for a party', @e);
+```
+
+The distance functions take a stored vector, not a variable, so keep the
+query's embedding in a table too and join to it:
+
+```sql
+CREATE TABLE queries (id INT PRIMARY KEY, embedding SVECTOR(1536));
+SET @q = ai_embedding('embed', 'I cannot log in to my account');
+INSERT INTO queries VALUES (1, @q);
+
+SELECT d.id, d.body, COSINE_DISTANCE(d.embedding, q.embedding) AS dist
+FROM docs d JOIN queries q ON q.id = 1
+ORDER BY dist
+LIMIT 5;
+```
+
+Both restrictions are vsql-vector limitations (see its Known Limitations);
+the search is a full scan until it adds an index.
+
+### Decisions
+
+`ai_decision(model_id, input, questions)` asks a decision model one or more
+questions about `input` and returns calibrated probabilities instead of
+generated text. Decision models suit classification, routing, moderation and
+triage, where you want a probability you can threshold rather than prose to
+parse. Register a decision model like any other:
+
+```sql
+-- in vsql_ai.models:
+--   "decide": {"provider": "google", "model": "gemini-decision-1",
+--              "key_id": "gemini_key", "key_owner": "root@localhost"}
+
+SET @questions = '{
+  "is_billing": {"type": "noul", "instructions": "Is this message about billing?",
+                 "criteria": {"true": "About charges, invoices or refunds",
+                              "false": "About anything else"}},
+  "tone":       {"type": "choice", "instructions": "What is the tone of this message?",
+                 "criteria": {"angry": "Upset or hostile", "calm": "Neutral or polite",
+                              "excited": "Enthusiastic"}},
+  "urgency":    {"type": "score", "instructions": "How urgent is this message?",
+                 "criteria": ["Can wait", "Needs attention this week",
+                              "Needs attention today"]}
+}';
+
+SELECT id,
+       JSON_EXTRACT(d, '$.is_billing.noul') AS p_billing,
+       JSON_UNQUOTE(JSON_EXTRACT(d, '$.tone.choice')) AS tone,
+       JSON_EXTRACT(d, '$.urgency.score') AS urgency
+FROM (SELECT id, ai_decision('decide', body, @questions) AS d FROM tickets) t;
+```
+
+**Questions** are a JSON object keyed by name (1–64 characters of `A-Z`,
+`a-z`, `0-9`, `_`, `-`). Each has a `type`, `instructions` (a non-empty
+string), and `criteria`:
+
+| Type | Asks | `criteria` |
+|---|---|---|
+| `noul` | Yes or no | Optional: `{"true": "what counts as yes", "false": "what counts as no"}` |
+| `choice` | Pick one option | Required: `{"option": "description", ...}`, 2–255 options; `""` for no description |
+| `score` | Rate on a scale | Required: `["lowest", ..., "highest"]`, 2–10 levels |
+
+**Answers** come back as a JSON object keyed by the same names. Every
+provider's answers are translated to this shape:
+
+| Type | Fields |
+|---|---|
+| `noul` | `noul`: probability the answer is yes; `confidence` (Google only) |
+| `choice` | `choice`: most likely option; `probabilities`: `{"option": p}`; `confidence` |
+| `score` | `score`: probability-weighted level, 0 to levels−1, can be fractional; `probabilities` and `legend`, keyed `"0"`, `"1"`, ...; `confidence` |
+| `refusal` | OpenAI only: the model declined that question; others are still answered |
+
+A field a provider does not return is left out rather than made up: TypeSafe
+and OpenAI return no `confidence` for a `noul` answer. OpenAI's decisions API
+has no criteria for yes/no questions, so for an `openai` model the `true` and
+`false` descriptions are appended to the instructions.
+
+The limits above are the ones every supported provider accepts. Each provider
+also limits the number of questions per call (OpenAI 400, Google 1,000,
+TypeSafe by context length), and the answers must fit the 64 KB result.
+
 ### Supported Providers
 
 The `provider` field of a registry entry is one of the names below. Model
@@ -325,6 +443,9 @@ rerouted to `gemini-3.5-flash-lite` and `gemini-3.8-flash` on December 1, 2026.
 - **Gemini Embedding 2**: `gemini-embedding-2` (multimodal embedding model)
 - **Gemini Embedding 001**: `gemini-embedding-001` (3072 dimensions by default)
 
+**Decisions** (`ai_decision()` only):
+- **Gemini Decision 1**: `gemini-decision-1` (beta; `/v1beta/decisions`)
+
 #### OpenAI (provider: `openai`)
 **Chat:**
 - **GPT-6.2 Astra**: `gpt-6.2-astra` (flagship for complex reasoning)
@@ -337,6 +458,14 @@ January 14, 2027; OpenAI recommends `gpt-6-luna` as the replacement.
 **Embeddings:**
 - **text-embedding-3-small**: `text-embedding-3-small` (1536 dimensions, best value)
 - **text-embedding-3-large**: `text-embedding-3-large` (3072 dimensions, highest performance)
+
+**Decisions** (`ai_decision()` only):
+- **GPT-6 Luna**: `gpt-6-luna`, the only model OpenAI's decisions API accepts
+
+#### TypeSafe (provider: `typesafe`)
+TypeSafe's Jev models through the System One API. Decisions only:
+`ai_prompt()` and `ai_embedding()` return a warning for a `typesafe` model.
+- **Jev**: `jev-latest` (currently `jev-1.14.0`), or a versioned ID such as `jev-1.13.0`
 
 #### Local Ollama (provider: `local`)
 Connects to Ollama running on `127.0.0.1:11434`. No API key required. Use any model you have pulled in Ollama.
@@ -367,6 +496,18 @@ Generate a text embedding with a registered embedding model.
 - `text` (STRING): Text to embed
 
 **Returns:** STRING - JSON array of the embedding vector (dimensions vary by model)
+
+#### `ai_decision(model_id, input, questions)`
+Ask a decision model questions about a piece of input.
+
+**Parameters:**
+- `model_id` (STRING): A model ID registered in `vsql_ai.models` whose
+  provider is `google`, `openai` or `typesafe`
+- `input` (STRING): The text the questions are about
+- `questions` (STRING): JSON object of named questions; see [Decisions](#decisions)
+
+**Returns:** STRING - JSON object of answers keyed by question name, or NULL
+with a warning on failure
 
 #### `vsql_ai.models` (system variable)
 Global, string, default empty. The model registry described in
@@ -542,6 +683,20 @@ The extension includes live API tests for each provider. Each test will skip liv
    perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test ai_embedding_openai
    ```
 
+#### Testing Decisions
+
+The offline `ai_decision` test needs nothing. The live tests use the same keys
+as the prompt tests, plus a TypeSafe key:
+
+```bash
+export GEMINI_API_KEY='...'      # ai_decision_google
+export OPENAI_API_KEY='...'      # ai_decision_openai
+export TYPESAFE_API_KEY='...'    # ai_decision_typesafe
+cd $HOME/build/villagesql/mysql-test
+perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test \
+    ai_decision ai_decision_google ai_decision_openai ai_decision_typesafe
+```
+
 #### Testing Local Ollama
 
 1. **Ensure Ollama is running** on `127.0.0.1:11434` with a model pulled. If Ollama uses another port, export `VSQL_AI_LOCAL_PORT` before you run the tests; MTR passes it to the server.
@@ -572,9 +727,9 @@ The extension includes live API tests for each provider. Each test will skip liv
   server's general query log (`sql_log_off`)
 - Validate that responses contain expected content
 
-**Note:** The `ai_registry` and `error_handling` tests need no API key and no
-network access; they cover the registry, the keyring lookups and argument
-validation.
+**Note:** The `ai_registry`, `ai_decision` and `error_handling` tests need no
+API key and no network access; they cover the registry, the keyring lookups,
+question validation and argument validation.
 
 ## Development
 
@@ -583,7 +738,8 @@ validation.
 vsql-ai/
 ├── src/
 │   ├── ai_functions.cc      # VEF function implementations and registration
-│   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google, Local)
+│   ├── ai_providers.h/.cc   # AI provider implementations (Anthropic, OpenAI, Google, TypeSafe, Local)
+│   ├── decisions.h/.cc      # ai_decision: question checks, per-provider translation
 │   ├── model_registry.h/.cc # Parsing and validation of vsql_ai.models
 │   └── http_client.h/.cc    # HTTP client wrapper for API calls
 ├── include/
@@ -621,6 +777,7 @@ The extension uses:
 - ✅ OpenAI GPT integration
 - ✅ OpenAI embeddings
 - ✅ Local Ollama provider (no API key required)
+- ✅ Decision models: Gemini Decision, TypeSafe Jev, OpenAI decisions (`ai_decision()`)
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs
 - ⏳ Token counting utilities

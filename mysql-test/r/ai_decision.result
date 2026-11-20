@@ -1,0 +1,142 @@
+INSTALL EXTENSION vsql_ai;
+SET GLOBAL vsql_ai.models = '{
+  "local":   {"provider": "local", "model": "m"},
+  "decider": {"provider": "google", "model": "gemini-decision-1",
+              "key_id": "gemini_key", "key_owner": "root@localhost"}
+}';
+SET @q = '{"is_billing": {"type": "noul", "instructions": "Is this about billing?"}}';
+#
+# NULL in any argument yields NULL with no warning; empty is rejected
+#
+SELECT ai_decision(NULL, 'text', @q) IS NULL AS null_model_id_is_null;
+null_model_id_is_null
+1
+SELECT ai_decision('decider', NULL, @q) IS NULL AS null_input_is_null;
+null_input_is_null
+1
+SELECT ai_decision('decider', 'text', NULL) IS NULL AS null_questions_is_null;
+null_questions_is_null
+1
+SELECT ai_decision('', 'text', @q) IS NULL AS empty_model_id_is_null;
+empty_model_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Model ID cannot be empty
+SELECT ai_decision('decider', '', @q) IS NULL AS empty_input_is_null;
+empty_input_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Input cannot be empty
+#
+# Questions are checked before the model is looked up
+#
+SELECT ai_decision('unregistered', 'text', '{not json') IS NULL AS invalid_json;
+invalid_json
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Questions are not valid JSON
+SELECT ai_decision('decider', 'text', '[]') IS NULL AS not_object;
+not_object
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Questions must be a JSON object of one or more named questions
+SELECT ai_decision('decider', 'text', '{}') IS NULL AS no_questions;
+no_questions
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Questions must be a JSON object of one or more named questions
+SELECT ai_decision('decider', 'text',
+'{"has space": {"type": "noul", "instructions": "x"}}') IS NULL AS bad_name;
+bad_name
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Question name 'has space' must be 1-64 characters of A-Z, a-z, 0-9, _ and -
+SELECT ai_decision('decider', 'text',
+'{"q": "Is it billing?"}') IS NULL AS question_not_object;
+question_not_object
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q' must be a JSON object
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "noul", "instructions": "x", "hint": "y"}}') IS NULL AS unknown_field;
+unknown_field
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q' has unknown field 'hint'
+SELECT ai_decision('decider', 'text',
+'{"q": {"instructions": "x"}}') IS NULL AS no_type;
+no_type
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q' needs a type: noul, choice or score
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "box", "instructions": "x"}}') IS NULL AS unknown_type;
+unknown_type
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q' has unknown type 'box'; use noul, choice or score
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "noul"}}') IS NULL AS no_instructions;
+no_instructions
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q' needs instructions, a non-empty string
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "noul", "instructions": "x", "criteria": {"yes": "y"}}}') IS NULL AS bad_noul_criteria;
+bad_noul_criteria
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': noul criteria may only hold "true" and "false" descriptions, as strings
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "choice", "instructions": "x", "criteria": {"only": "one"}}}') IS NULL AS one_choice;
+one_choice
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': choice criteria must be an object of 2 to 255 options, each mapped to a description
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "choice", "instructions": "x", "criteria": {"a": 1, "b": 2}}}') IS NULL AS non_string_choice;
+non_string_choice
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': each choice option needs a non-empty name and a string description ("" for none)
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "score", "instructions": "x", "criteria": ["only"]}}') IS NULL AS one_level;
+one_level
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': score criteria must be an array of 2 to 10 levels, lowest first
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "score", "instructions": "x", "criteria": ["1","2","3","4","5","6","7","8","9","10","11"]}}') IS NULL AS eleven_levels;
+eleven_levels
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': score criteria must be an array of 2 to 10 levels, lowest first
+SELECT ai_decision('decider', 'text',
+'{"q": {"type": "score", "instructions": "x", "criteria": ["low", ""]}}') IS NULL AS empty_level;
+empty_level
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': question 'q': each score level must be a non-empty string
+#
+# Valid questions then go through the registry and the keyring
+#
+SELECT ai_decision('unregistered', 'text', @q) IS NULL AS unregistered_is_null;
+unregistered_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': Model 'unregistered' is not registered in vsql_ai.models
+SELECT ai_decision('decider', 'text', @q) IS NULL AS no_keyring_is_null;
+no_keyring_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': No keyring component is installed; vsql_ai reads API keys from the MySQL keyring
+#
+# A provider without a decisions API says so
+#
+SELECT ai_decision('local', 'text', @q) IS NULL AS no_decisions_api;
+no_decisions_api
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': This provider has no decisions API; use google, openai or typesafe
+SET GLOBAL vsql_ai.models = DEFAULT;
+UNINSTALL EXTENSION vsql_ai;

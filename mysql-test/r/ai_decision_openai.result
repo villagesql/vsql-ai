@@ -1,0 +1,70 @@
+SELECT STATUS_VALUE AS keyring_status
+FROM performance_schema.keyring_component_status
+WHERE STATUS_KEY = 'Component_status';
+keyring_status
+Active
+INSTALL EXTENSION vsql_ai;
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345')
+1
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "openai", "model": "gpt-6-luna",
+              "key_id": "test_openai_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "openai", "model": "gpt-6-luna",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+SET @input = 'Subject: URGENT - invoice #4411 charged twice! I was billed 250 dollars twice this morning and need a refund today.';
+SET @questions = '{
+  "is_billing": {"type": "noul", "instructions": "Is this message about billing?",
+                 "criteria": {"true": "About charges, invoices or refunds",
+                              "false": "About anything else"}},
+  "tone":       {"type": "choice", "instructions": "What is the tone of this message?",
+                 "criteria": {"angry": "Upset or hostile", "calm": "Neutral or polite",
+                              "excited": "Enthusiastic"}},
+  "urgency":    {"type": "score", "instructions": "How urgent is this message?",
+                 "criteria": ["Can wait", "Needs attention this week",
+                              "Needs attention today"]}
+}';
+SELECT ai_decision('bad_key', @input, @questions);
+ai_decision('bad_key', @input, @questions)
+NULL
+Warnings:
+Warning	3200	VDF error in function 'ai_decision': HTTP 401: Identity Edge route authentication policy requires an accepted credential
+SHOW WARNINGS;
+Level	Code	Message
+Warning	3200	VDF error in function 'ai_decision': HTTP 401: Identity Edge route authentication policy requires an accepted credential
+# Running live API test
+SET @answers = ai_decision('live', @input, @questions);
+SELECT JSON_VALID(@answers) AS valid_json;
+valid_json
+1
+SELECT JSON_LENGTH(@answers) AS answer_count;
+answer_count
+3
+SELECT JSON_EXTRACT(@answers, '$.is_billing.type') AS noul_type,
+JSON_EXTRACT(@answers, '$.is_billing.noul') > 0.5 AS is_billing;
+noul_type	is_billing
+"noul"	1
+SELECT JSON_EXTRACT(@answers, '$.tone.type') AS choice_type,
+JSON_UNQUOTE(JSON_EXTRACT(@answers, '$.tone.choice')) AS tone,
+JSON_LENGTH(JSON_EXTRACT(@answers, '$.tone.probabilities')) AS tone_options,
+JSON_CONTAINS_PATH(@answers, 'one', '$.tone.confidence') AS tone_has_confidence;
+choice_type	tone	tone_options	tone_has_confidence
+"choice"	angry	3	1
+SELECT JSON_EXTRACT(@answers, '$.urgency.type') AS score_type,
+JSON_EXTRACT(@answers, '$.urgency.score') > 1 AS is_urgent,
+JSON_LENGTH(JSON_EXTRACT(@answers, '$.urgency.probabilities')) AS urgency_levels,
+JSON_UNQUOTE(JSON_EXTRACT(@answers, '$.urgency.legend."2"')) AS top_level;
+score_type	is_urgent	urgency_levels	top_level
+"score"	1	3	Needs attention today
+SELECT JSON_CONTAINS_PATH(@answers, 'one', '$.is_billing.confidence') AS noul_has_confidence;
+noul_has_confidence
+0
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_openai_key');
+keyring_key_remove('test_openai_key')
+1
+SELECT keyring_key_remove('test_invalid_key');
+keyring_key_remove('test_invalid_key')
+1
+UNINSTALL EXTENSION vsql_ai;
