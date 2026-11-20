@@ -3,6 +3,8 @@
 
 # Install extension
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 SET GLOBAL vsql_ai.models = '{"local": {"provider": "local", "model": "no-such-model"}}';
 
@@ -19,4 +21,5 @@ SELECT ai_embedding('local', _binary 0xFF) IS NULL AS invalid_utf8_embed_is_null
 
 # Cleanup
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

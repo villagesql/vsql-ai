@@ -1,0 +1,99 @@
+INSTALL EXTENSION vsql_ai;
+#
+# The check is on by default, and even root needs the grant: MySQL does
+# not give existing accounts a newly registered dynamic privilege
+#
+SELECT @@vsql_ai.require_privilege;
+@@vsql_ai.require_privilege
+1
+SELECT ai_prompt('unregistered', 'Hello');
+ERROR HY000: VDF error in function 'ai_prompt': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+SELECT ai_embedding('unregistered', 'Hello');
+ERROR HY000: VDF error in function 'ai_embedding': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+SELECT ai_embedding_binary('unregistered', 'Hello');
+ERROR HY000: VDF error in function 'ai_embedding_binary': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+SELECT ai_request('unregistered', '{}');
+ERROR HY000: VDF error in function 'ai_request': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+SELECT ai_decision('unregistered', 'Hello', '{}');
+ERROR HY000: VDF error in function 'ai_decision': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+# NULL arguments are refused too
+SELECT ai_prompt(NULL, NULL);
+ERROR HY000: VDF error in function 'ai_prompt': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+#
+# With the grant, calls go on to the registry
+#
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS root_allowed;
+root_allowed
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+SELECT ai_embedding_binary('unregistered', 'Hello') IS NULL AS root_allowed_binary;
+root_allowed_binary
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding_binary': Model 'unregistered' is not registered: vsql_ai.models is empty
+#
+# Another account is refused until granted, and cannot turn the check off
+#
+CREATE USER ai_caller@localhost;
+GRANT EXECUTE ON test.* TO ai_caller@localhost;
+CREATE DEFINER=root@localhost PROCEDURE test.ai_as_definer()
+SQL SECURITY DEFINER SELECT ai_prompt('unregistered', 'Hello') IS NULL AS as_definer;
+CREATE DEFINER=root@localhost PROCEDURE test.ai_as_invoker()
+SQL SECURITY INVOKER SELECT ai_prompt('unregistered', 'Hello') IS NULL AS as_invoker;
+SELECT ai_prompt('unregistered', 'Hello');
+ERROR HY000: VDF error in function 'ai_prompt': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+SET GLOBAL vsql_ai.require_privilege = OFF;
+ERROR 42000: Access denied; you need (at least one of) the SUPER or SYSTEM_VARIABLES_ADMIN privilege(s) for this operation
+# A SQL SECURITY DEFINER routine runs with its definer's privileges
+CALL test.ai_as_definer();
+as_definer
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+CALL test.ai_as_invoker();
+ERROR HY000: VDF error in function 'ai_prompt': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+GRANT VSQL_AI_USER ON *.* TO ai_caller@localhost;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS caller_allowed;
+caller_allowed
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+CALL test.ai_as_invoker();
+as_invoker
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+REVOKE VSQL_AI_USER ON *.* FROM ai_caller@localhost;
+#
+# vsql_ai.require_privilege = OFF lets every account call the functions
+#
+SET GLOBAL vsql_ai.require_privilege = OFF;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS allowed_when_off;
+allowed_when_off
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+SET GLOBAL vsql_ai.require_privilege = DEFAULT;
+SELECT ai_prompt('unregistered', 'Hello');
+ERROR HY000: VDF error in function 'ai_prompt': Access denied; you need the VSQL_AI_USER privilege to use vsql_ai functions
+#
+# A grant outlives an uninstall and applies again after reinstalling
+#
+UNINSTALL EXTENSION vsql_ai;
+SELECT COUNT(*) AS grant_kept FROM mysql.global_grants
+WHERE USER = 'root' AND PRIV = 'VSQL_AI_USER';
+grant_kept
+1
+INSTALL EXTENSION vsql_ai;
+SELECT ai_prompt('unregistered', 'Hello') IS NULL AS root_allowed_after_reinstall;
+root_allowed_after_reinstall
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_prompt': Model 'unregistered' is not registered: vsql_ai.models is empty
+DROP PROCEDURE test.ai_as_definer;
+DROP PROCEDURE test.ai_as_invoker;
+DROP USER ai_caller@localhost;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
+UNINSTALL EXTENSION vsql_ai;

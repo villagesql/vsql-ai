@@ -36,6 +36,7 @@
 
 #include "decisions.h"
 #include "embedding_format.h"
+#include "privilege.h"
 #include "raw_request.h"
 
 namespace vsql_ai {
@@ -100,7 +101,23 @@ void set_registry(const char* value) {
 // Issue #41: invalid UTF-8 reaching an entry point is reported as a warning,
 // never thrown across the extension boundary. A local model needs no key, and
 // the request body is serialized before any connection is attempted.
+// With the privilege check on but no MySQL services to ask (there is no
+// server here), every call must be refused, with an error rather than a
+// warning, and never allowed through.
+void test_privilege_check_fails_closed() {
+  set_registry(R"({"local": {"provider": "local", "model": "m"}})");
+  vsql_ai::g_require_privilege = true;
+  Arg model("local"), prompt("Hello");
+  Result out;
+  vsql_ai::prompt_impl(model.get(), prompt.get(), out.get());
+  CHECK(out.raw.type == VEF_RESULT_ERROR);
+  CHECK(std::strstr(out.error, "VSQL_AI_USER") != nullptr);
+  set_registry("");
+}
+
 void test_exception_guard() {
+  // The privilege check needs a server; this test is about what follows it.
+  vsql_ai::g_require_privilege = false;
   set_registry(R"({"local": {"provider": "local", "model": "m"}})");
   const std::string invalid = "abc\xFF\xFE" "def";  // split: \xFE would eat "def"
 
@@ -226,6 +243,7 @@ void test_google_block_and_errors() {
 }  // namespace
 
 int main() {
+  test_privilege_check_fails_closed();
   test_exception_guard();
   test_pack_float32_le();
   test_raw_request_prepare();

@@ -92,6 +92,11 @@ SELECT ai_embedding('gemini-embed', 'Machine learning is fascinating');
 > with four arguments now fail with `wrong number of arguments`. Register each
 > model in `vsql_ai.models`, store its key in the keyring, and pass the model
 > ID instead.
+>
+> **Upgrading from 0.0.11 or earlier:** calling any vsql_ai function now needs
+> the `VSQL_AI_USER` privilege, and no account has it until it is granted,
+> root included. Until then every call fails with "Access denied; you need the
+> VSQL_AI_USER privilege". See [Grant access](#5-grant-access).
 
 ### Setup
 
@@ -218,13 +223,13 @@ The registry holds no secrets, so any user may read it with
 `SELECT @@vsql_ai.models`. Changing it requires `SYSTEM_VARIABLES_ADMIN`, which
 is what controls who can add a model or point one at a key.
 
-**A registered model's key is shared by everyone who can call it.** The key
-is read as `key_owner` no matter which account calls `ai_prompt()` or
-`ai_embedding()`, so every caller spends that owner's provider credits, the
-way an application's service credentials are shared by all its users. Calling
-the functions needs no privilege of its own today; to limit spending, register
-only the models you are willing to share, and use a key with a spending limit
-at the provider.
+**A registered model's key is shared by everyone who may call the
+functions.** The key is read as `key_owner` no matter which account makes the
+call, so every caller spends that owner's provider credits, the way an
+application's service credentials are shared by all its users. Who may call
+is controlled by the `VSQL_AI_USER` privilege (next step). To limit spending
+further, register only the models you are willing to share, and use a key
+with a spending limit at the provider.
 
 Two things to know about where the registry lives:
 
@@ -234,6 +239,33 @@ Two things to know about where the registry lives:
   or on the server command line is read through a 1 KB buffer, so one longer
   than 1023 bytes (roughly eight models) makes every call fail with a warning
   that says so.
+
+#### 5. Grant access
+
+Calling any vsql_ai function requires the `VSQL_AI_USER` dynamic privilege,
+which the extension registers when it is installed. MySQL does not give a
+newly registered privilege to existing accounts, so grant it, to root as well
+if root will call the functions:
+
+```sql
+GRANT VSQL_AI_USER ON *.* TO app@'%';
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
+```
+
+A call without it fails with an error ("Access denied; you need the
+VSQL_AI_USER privilege to use vsql_ai functions") rather than returning NULL,
+so a statement over many rows stops at the first one.
+
+- The check uses the statement's active account, so a `SQL SECURITY DEFINER`
+  routine runs with its definer's privilege. That is a way to let users call
+  one vetted routine without granting them the functions in general.
+- Grants survive `UNINSTALL EXTENSION` and apply again after reinstalling.
+- To let every account call the functions, for example on a development
+  server, turn the check off (this needs `SYSTEM_VARIABLES_ADMIN`):
+
+  ```sql
+  SET PERSIST vsql_ai.require_privilege = OFF;
+  ```
 
 ### AI Prompting Examples
 
@@ -588,6 +620,14 @@ with a warning on failure
 Global, string, default empty. The model registry described in
 [Register models](#4-register-models).
 
+#### `vsql_ai.require_privilege` (system variable)
+Global, boolean, default `ON`. Whether calling the functions requires the
+`VSQL_AI_USER` privilege; see [Grant access](#5-grant-access).
+
+#### `VSQL_AI_USER` (dynamic privilege)
+Required to call any vsql_ai function while `vsql_ai.require_privilege` is
+`ON`. Grant it with `GRANT VSQL_AI_USER ON *.* TO ...`.
+
 ## Security Considerations
 
 ### API Key Safety
@@ -643,8 +683,8 @@ issues one request per row, serially. There is no batching or asynchronous
 execution. Materialize results into a column rather than recomputing them per
 query, and raise `max_execution_time` for multi-row statements.
 
-**Needs preview extensions and a keyring.** The keyring and system variable
-capabilities `vsql_ai` uses are VillageSQL preview capabilities, so
+**Needs preview extensions and a keyring.** The keyring, system variable and
+MySQL services capabilities `vsql_ai` uses are VillageSQL preview capabilities, so
 `vsql_allow_preview_extensions` must be ON, and they may change in a future
 server release. Cloud models also need a keyring component.
 
@@ -689,6 +729,10 @@ perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test \
 The cloud provider tests and `ai_registry` restart the server with
 `component_keyring_file` (configured in the test's data directory), store the
 API key with `keyring_key_store()`, and remove it before finishing.
+
+Each test grants `VSQL_AI_USER` to root after installing the extension and
+revokes it before uninstalling, so no grant is left in `mysql.global_grants`.
+`ai_privilege` covers the check itself.
 
 ```bash
 cd $HOME/build/villagesql/mysql-test
@@ -818,8 +862,8 @@ perl mysql-test-run.pl --suite=/path/to/vsql-ai/mysql-test \
   server's general query log (`sql_log_off`)
 - Validate that responses contain expected content
 
-**Note:** The `ai_registry`, `ai_decision`, `ai_request` and `error_handling`
-tests need no API key and no network access; they cover the registry, the
+**Note:** The `ai_registry`, `ai_privilege`, `ai_decision`, `ai_request` and
+`error_handling` tests need no API key and no network access; they cover the registry, the
 keyring lookups, question and request validation, and argument validation.
 The live prompt and embedding tests also exercise `ai_request()` and
 `ai_embedding_binary()`.
@@ -835,11 +879,13 @@ vsql-ai/
 │   ├── decisions.h/.cc      # ai_decision: question checks, per-provider translation
 │   ├── embedding_format.h/.cc # Packing embeddings as float32 for ai_embedding_binary
 │   ├── raw_request.h/.cc    # ai_request: body checks and native endpoints
+│   ├── privilege.h/.cc      # VSQL_AI_USER: registration and the per-call check
 │   ├── model_registry.h/.cc # Parsing and validation of vsql_ai.models
 │   └── http_client.h/.cc    # HTTP client wrapper for API calls
 ├── unittest/
 │   └── vsql_ai_unittest.cc  # Unit tests (ctest); no server needed
 ├── include/
+│   ├── mysql/components/    # Vendored MySQL service headers (see include/mysql/README.md)
 │   ├── httplib.h            # cpp-httplib single header
 │   └── nlohmann/json.hpp    # nlohmann/json single header
 ├── cmake/
@@ -875,6 +921,7 @@ The extension uses:
 - ✅ OpenAI embeddings
 - ✅ Local Ollama provider (no API key required)
 - ✅ Binary (float32) embeddings and raw provider requests
+- ✅ `VSQL_AI_USER` privilege for calling the functions
 - ✅ Decision models: Gemini Decision, TypeSafe Jev, OpenAI decisions (`ai_decision()`)
 - ⏳ Configurable timeouts
 - ⏳ Response streaming for long outputs

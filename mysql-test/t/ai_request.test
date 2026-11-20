@@ -2,6 +2,8 @@
 # or keyring: every call here fails before a request would be sent.
 
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 SET GLOBAL vsql_ai.models = '{
   "local":  {"provider": "local", "model": "no-such-model-vsql-test"},
@@ -40,4 +42,5 @@ SELECT ai_request('local', '{"stream": true}') IS NULL AS stream_is_null;
 SELECT ai_request('local', '{"stream": "no"}') IS NULL AS non_boolean_stream_is_null;
 
 SET GLOBAL vsql_ai.models = DEFAULT;
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;

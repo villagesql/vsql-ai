@@ -2,6 +2,8 @@
 # call here fails before a request would be sent.
 
 INSTALL EXTENSION vsql_ai;
+# Calling the functions needs the VSQL_AI_USER privilege
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 
 --echo #
 --echo # The registry is a system variable that starts empty
@@ -83,10 +85,12 @@ SET GLOBAL vsql_ai.models = '{"gone": {"provider": "local", "model": "m"}}';
 SET PERSIST vsql_ai.models = '{"gone": {"provider": "local", "model": "m"}}';
 SELECT COUNT(*) AS persisted_before FROM performance_schema.persisted_variables
  WHERE VARIABLE_NAME = 'vsql_ai.models';
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 SELECT COUNT(*) AS persisted_after FROM performance_schema.persisted_variables
  WHERE VARIABLE_NAME = 'vsql_ai.models';
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SELECT @@vsql_ai.models = '' AS registry_empty_after_reinstall;
 SELECT ai_prompt('gone', 'Hello') IS NULL AS reinstall_resets_registry;
 
@@ -108,9 +112,11 @@ DROP USER ai_reader@localhost;
 --echo #
 # The keyring needs a server restart. Uninstall first and install again
 # afterwards rather than relying on the extension surviving the restart.
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 --source ../include/keyring_setup.inc
 INSTALL EXTENSION vsql_ai;
+GRANT VSQL_AI_USER ON *.* TO root@localhost;
 SET GLOBAL vsql_ai.models = '{
   "claude":   {"provider": "anthropic", "model": "claude-opus-5-5",
                "key_id": "anthropic_key", "key_owner": "root@localhost"},
@@ -131,5 +137,6 @@ SET GLOBAL vsql_ai.models = '{
 SELECT ai_prompt('claude', 'Hello') IS NULL AS other_owner_is_null;
 SELECT keyring_key_remove('anthropic_key');
 
+REVOKE VSQL_AI_USER ON *.* FROM root@localhost;
 UNINSTALL EXTENSION vsql_ai;
 --source ../include/keyring_teardown.inc
