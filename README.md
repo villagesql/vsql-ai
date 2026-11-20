@@ -126,23 +126,33 @@ only use `local`.
 
 #### 3. Store API keys
 
-The simplest way to put a key into the keyring from SQL is the `keyring_udf`
-plugin that ships with the server:
+`vsql_ai` reads the keyring directly and needs nothing beyond the keyring
+component. Storing a key from SQL, though, needs the `keyring_udf` plugin that
+ships with the server. Install it once per server, after the keyring component
+is active; the plugin and its functions persist across restarts:
 
 ```sql
 INSTALL PLUGIN keyring_udf SONAME 'keyring_udf.so';
 CREATE FUNCTION keyring_key_store RETURNS INTEGER SONAME 'keyring_udf.so';
 CREATE FUNCTION keyring_key_remove RETURNS INTEGER SONAME 'keyring_udf.so';
+```
 
--- The statement contains the key: keep it out of the general query log
+Then store each key. The statement contains the key, so keep it out of the
+general query log:
+
+```sql
 SET SESSION sql_log_off = ON;
 SELECT keyring_key_store('anthropic_key', 'SECRET', 'sk-ant-...');
 SET SESSION sql_log_off = OFF;
 ```
 
-A key stored with `keyring_key_store()` is owned by the account that stored
-it (`CURRENT_USER()`, such as `root@localhost`); the registry names that
-account as `key_owner`. To rotate a key, remove it and store the new one:
+The key type (`SECRET` here) is not checked; vsql-duckdb's examples use
+`AES`, and either works.
+
+**A key stored that way belongs to the account that stored it**, so name that
+account as `key_owner` in the registry. The owner is the full `user@host`
+form, as `CURRENT_USER()` shows it: `root` and `root@%` do not match a key
+stored by `root@localhost`. To rotate a key, remove it and store the new one:
 
 ```sql
 SELECT keyring_key_remove('anthropic_key');
