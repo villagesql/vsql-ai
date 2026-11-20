@@ -260,12 +260,46 @@ so a statement over many rows stops at the first one.
   routine runs with its definer's privilege. That is a way to let users call
   one vetted routine without granting them the functions in general.
 - Grants survive `UNINSTALL EXTENSION` and apply again after reinstalling.
+- To grant it, an account needs `VSQL_AI_USER` itself `WITH GRANT OPTION`,
+  or `UPDATE` on the `mysql` schema (as root has). That is MySQL's rule for
+  every dynamic privilege; `CREATE USER` or `GRANT OPTION` on other privileges
+  is not enough. To let an account manage access without holding broad
+  rights, give it the privilege with the grant option:
+
+  ```sql
+  GRANT VSQL_AI_USER ON *.* TO ai_admin@localhost WITH GRANT OPTION;
+  ```
 - To let every account call the functions, for example on a development
-  server, turn the check off (this needs `SYSTEM_VARIABLES_ADMIN`):
+  server, turn the check off. Changing `vsql_ai.require_privilege` needs
+  `SYSTEM_VARIABLES_ADMIN` (or the deprecated `SUPER`), like any global
+  system variable; it can also be set in the server's option file or on its
+  command line by whoever controls the server's configuration:
 
   ```sql
   SET PERSIST vsql_ai.require_privilege = OFF;
   ```
+
+  So an account with `SYSTEM_VARIABLES_ADMIN` can always reach the functions,
+  by turning the check off. That is the same privilege that edits
+  `vsql_ai.models`, so it already decides which models and keys exist.
+  Turning the check off is global: it opens the functions to every account,
+  not just the one that changed it.
+
+#### Privileges at a glance
+
+| Task | Privilege needed |
+|---|---|
+| Allow preview extensions (`SET PERSIST vsql_allow_preview_extensions`; `SET GLOBAL` is refused) | `SYSTEM_VARIABLES_ADMIN` (or `SUPER`) |
+| `INSTALL EXTENSION` / `UNINSTALL EXTENSION` | `EXTENSION_ADMIN` (or `SUPER`) |
+| Enable a keyring component | Write access to the server's files (manifest and config) and a restart; not done from SQL |
+| Install `keyring_udf` (`INSTALL PLUGIN`, `CREATE FUNCTION`) | `INSERT` on the `mysql` schema, as for any plugin and loadable function |
+| Store or remove a key (`keyring_key_store()`, `keyring_key_remove()`) | `EXECUTE`; the key then belongs to the account that stored it |
+| Turn off the general query log for the session (`SET SESSION sql_log_off`) | `SESSION_VARIABLES_ADMIN` (or `SYSTEM_VARIABLES_ADMIN` or `SUPER`) |
+| Register or change models (`vsql_ai.models`) | `SYSTEM_VARIABLES_ADMIN` (or `SUPER`) |
+| Read the registry (`SELECT @@vsql_ai.models`) | None |
+| Grant `VSQL_AI_USER` to others | `VSQL_AI_USER WITH GRANT OPTION`, or `UPDATE` on the `mysql` schema |
+| Call `ai_prompt()`, `ai_embedding()`, `ai_embedding_binary()`, `ai_request()`, `ai_decision()` | `VSQL_AI_USER`, unless `vsql_ai.require_privilege` is `OFF` |
+| Turn the privilege check off (`vsql_ai.require_privilege`) | `SYSTEM_VARIABLES_ADMIN` (or `SUPER`), or control of the server's configuration |
 
 ### AI Prompting Examples
 
@@ -622,11 +656,14 @@ Global, string, default empty. The model registry described in
 
 #### `vsql_ai.require_privilege` (system variable)
 Global, boolean, default `ON`. Whether calling the functions requires the
-`VSQL_AI_USER` privilege; see [Grant access](#5-grant-access).
+`VSQL_AI_USER` privilege; see [Grant access](#5-grant-access). Changing it
+needs `SYSTEM_VARIABLES_ADMIN` (or `SUPER`).
 
 #### `VSQL_AI_USER` (dynamic privilege)
 Required to call any vsql_ai function while `vsql_ai.require_privilege` is
-`ON`. Grant it with `GRANT VSQL_AI_USER ON *.* TO ...`.
+`ON`. Grant it with `GRANT VSQL_AI_USER ON *.* TO ...`; granting it needs
+`VSQL_AI_USER WITH GRANT OPTION` or `UPDATE` on the `mysql` schema. See
+[Privileges at a glance](#privileges-at-a-glance).
 
 ## Security Considerations
 
