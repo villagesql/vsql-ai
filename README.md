@@ -83,7 +83,7 @@ INSTALL EXTENSION vsql_ai;
 -- Simple prompt with Claude
 SELECT ai_prompt(
     'anthropic',
-    'claude-opus-5',
+    'claude-opus-5-5',
     'your-api-key-here',
     'Explain quantum computing in one sentence'
 ) AS response;
@@ -94,7 +94,7 @@ SELECT ai_prompt(
 -- Simple prompt with Gemini
 SELECT ai_prompt(
     'google',
-    'gemini-2.5-flash',
+    'gemini-3.5-flash-lite',
     'your-api-key-here',
     'Explain quantum computing in one sentence'
 ) AS response;
@@ -105,7 +105,7 @@ SELECT ai_prompt(
 -- Simple prompt with GPT
 SELECT ai_prompt(
     'openai',
-    'gpt-4o-mini',
+    'gpt-6-luna',
     'your-api-key-here',
     'Explain quantum computing in one sentence'
 ) AS response;
@@ -134,13 +134,13 @@ INSERT INTO questions VALUES
 -- Get AI responses for multiple questions using Claude
 SET @api_key = 'your-anthropic-api-key';
 SELECT id, question,
-       ai_prompt('anthropic', 'claude-opus-5', @api_key, question) AS answer
+       ai_prompt('anthropic', 'claude-opus-5-5', @api_key, question) AS answer
 FROM questions;
 
 -- Or use Gemini
 SET @api_key = 'your-google-api-key';
 SELECT id, question,
-       ai_prompt('google', 'gemini-2.5-flash', @api_key, question) AS answer
+       ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, question) AS answer
 FROM questions;
 ```
 
@@ -206,32 +206,53 @@ version — it is only JSON parsing that is affected.
 
 Currently supported:
 
+Model names are passed through to the provider unchanged — the extension
+restricts only the provider, not the model. The lists below are the models
+we test and recommend; any other model the provider's API accepts on the same
+endpoint works too, including models released after this extension.
+
 #### Anthropic (provider: `anthropic`)
 Claude models:
-- **Claude Fable 5**: `claude-fable-5` (most capable model, for the most demanding reasoning and long-horizon work)
-- **Claude Opus 5**: `claude-opus-5` (recommended - complex agentic coding and enterprise work)
-- **Claude Sonnet 5**: `claude-sonnet-5` (best combination of speed and intelligence)
-- **Claude Haiku 4.5**: `claude-haiku-4-5` (fastest and most cost-effective)
+- **Claude Opus 5.5**: `claude-opus-5-5` (recommended default - complex agentic and enterprise work)
+- **Claude Fable 5.2**: `claude-fable-5-2` (most capable model, for the most demanding reasoning and long-horizon work)
+- **Claude Sonnet 5.5**: `claude-sonnet-5-5` (best combination of speed and intelligence)
+- **Claude Haiku 5.5**: `claude-haiku-5-5` (fastest and most cost-effective)
 
-Also supported (previous generations): `claude-opus-4-8`, `claude-opus-4-7`,
-`claude-opus-4-6`, `claude-opus-4-5-20251101`, `claude-sonnet-4-6`,
-`claude-sonnet-4-5-20250929`.
+Also supported (previous generations): `claude-fable-5-1`, `claude-fable-5`,
+`claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`,
+`claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
+
+Current Claude models think before answering, and on Opus 5.5 and Fable 5.2
+thinking cannot be turned off. Requests are sent with a 16,000-token output
+ceiling so thinking does not crowd out the answer. A refusal, or a response
+that reaches that ceiling before it produces any text, returns NULL with a
+warning saying so. A response that reaches the ceiling after its answer has
+begun returns the text produced so far, with no warning.
 
 #### Google (provider: `google`)
 **Generative:**
-- **Gemini 3 Flash**: `gemini-3-flash-preview` (balanced model for speed, scale, and frontier intelligence)
-- **Gemini 3 Pro**: `gemini-3-pro-preview` (best model for multimodal understanding)
-- **Gemini 2.5 Flash**: `gemini-2.5-flash` (stable - best price-performance ratio)
-- **Gemini 2.5 Pro**: `gemini-2.5-pro` (stable - state-of-the-art reasoning over complex problems)
+- **Gemini 3.8 Flash**: `gemini-3.8-flash` (stable - Google's migration target for Gemini 2.5 Pro)
+- **Gemini 3.6 Flash**: `gemini-3.6-flash` (stable)
+- **Gemini 3.5 Flash-Lite**: `gemini-3.5-flash-lite` (stable - fast and low cost)
+- **Gemini 4**: `gemini-4-hydrogen` and the rest of the Gemini 4 family (`gemini-4-carbon`, `gemini-4-neon`, `gemini-4-argon`)
+- **Gemini 3.1 Pro (preview)**: `gemini-3.1-pro-preview`
+
+`gemini-2.5-flash` and `gemini-2.5-pro` are deprecated by Google and are
+rerouted to `gemini-3.5-flash-lite` and `gemini-3.8-flash` on December 1, 2026.
+`gemini-3-pro-preview` has been shut down.
 
 **Embeddings:**
+- **Gemini Embedding 2**: `gemini-embedding-2` (multimodal embedding model)
 - **Gemini Embedding 001**: `gemini-embedding-001` (3072 dimensions by default)
-- **Gemini Embedding 2**: `gemini-embedding-2-preview` (improved embedding model)
 
 #### OpenAI (provider: `openai`)
 **Chat:**
-- **GPT-4o**: `gpt-4o` (flagship multimodal model)
-- **GPT-4o mini**: `gpt-4o-mini` (fast and cost-effective)
+- **GPT-6.2 Astra**: `gpt-6.2-astra` (flagship for complex reasoning)
+- **GPT-6.2 Sol**: `gpt-6.2-sol` (balance of intelligence and cost)
+- **GPT-6 Luna**: `gpt-6-luna` (fast and cost-effective for high-volume work)
+
+`gpt-4o` and `gpt-4o-mini` are deprecated by OpenAI and shut down on
+January 14, 2027; OpenAI recommends `gpt-6-luna` as the replacement.
 
 **Embeddings:**
 - **text-embedding-3-small**: `text-embedding-3-small` (1536 dimensions, best value)
@@ -253,7 +274,7 @@ Send a prompt to an AI provider and get a response.
 
 **Parameters:**
 - `provider` (STRING): AI provider name ("anthropic", "google", "openai", "local")
-- `model` (STRING): Model identifier (e.g., "claude-opus-5", "gemini-2.5-flash", "gpt-4o-mini", "llama3.2")
+- `model` (STRING): Model identifier (e.g., "claude-opus-5-5", "gemini-3.5-flash-lite", "gpt-6-luna", "llama3.2")
 - `api_key` (STRING): API key for authentication (use empty string `''` for local provider)
 - `prompt` (STRING): The prompt text to send to the AI
 
@@ -262,13 +283,13 @@ Send a prompt to an AI provider and get a response.
 **Examples:**
 ```sql
 -- Anthropic Claude
-SELECT ai_prompt('anthropic', 'claude-opus-5', @api_key, 'Hello!');
+SELECT ai_prompt('anthropic', 'claude-opus-5-5', @api_key, 'Hello!');
 
 -- Google Gemini
-SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'Hello!');
+SELECT ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'Hello!');
 
 -- OpenAI GPT
-SELECT ai_prompt('openai', 'gpt-4o-mini', @api_key, 'Hello!');
+SELECT ai_prompt('openai', 'gpt-6-luna', @api_key, 'Hello!');
 
 -- Local Ollama (no API key needed)
 SELECT ai_prompt('local', 'llama3.2', '', 'Hello!');
@@ -313,7 +334,7 @@ SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascin
    SET @api_key = 'sk-ant-your-api-key';
 
    -- Use variable in queries
-   SELECT ai_prompt('anthropic', 'claude-opus-5', @api_key, 'prompt');
+   SELECT ai_prompt('anthropic', 'claude-opus-5-5', @api_key, 'prompt');
    ```
    Session variables keep API keys out of query text and reduce exposure in logs.
 
@@ -332,18 +353,18 @@ SELECT ai_embedding('local', 'nomic-embed-text', '', 'Machine learning is fascin
 ### Network Security
 
 - All API requests use HTTPS with SSL certificate verification
-- Cloud provider connections timeout after 30 seconds; the local (Ollama) provider allows 300 seconds, since local models can be slow to load
+- Cloud provider connections time out after 120 seconds, since current models reason before answering; the local (Ollama) provider allows 300 seconds, since local models can be slow to load
 - Failed connections return clear error messages
 
 ## Performance Considerations
 
 ### Timeouts
 
-AI API calls can take 5-30 seconds depending on prompt complexity and model speed. Consider:
+AI API calls can take 5-120 seconds depending on prompt complexity, model speed, and how long the model reasons. Consider:
 
 1. **MySQL Query Timeout**: You may need to adjust `max_execution_time`:
    ```sql
-   SET SESSION max_execution_time = 60000; -- 60 seconds
+   SET SESSION max_execution_time = 120000; -- 120 seconds
    ```
 
 2. **Batch Processing**: For multiple prompts, process in batches to avoid long-running queries
@@ -359,7 +380,7 @@ AI providers impose rate limits on API requests:
 
 **Each call blocks the connection.** Both functions perform a synchronous
 outbound HTTP request from inside the SQL function, holding the server thread
-until the provider responds — up to 30 seconds for cloud providers, 300 for
+until the provider responds — up to 120 seconds for cloud providers, 300 for
 local Ollama. Cost scales linearly with row count: `SELECT ai_prompt(...) FROM t`
 issues one request per row, serially. There is no batching or asynchronous
 execution. Materialize results into a column rather than recomputing them per

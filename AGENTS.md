@@ -122,7 +122,7 @@ INSTALL EXTENSION vsql_ai;
 Then test the functions:
 ```sql
 -- Test AI prompting
-SELECT ai_prompt('google', 'gemini-2.5-flash', @api_key, 'What is 2+2?');
+SELECT ai_prompt('google', 'gemini-3.5-flash-lite', @api_key, 'What is 2+2?');
 
 -- Test embeddings
 SELECT ai_embedding('google', 'gemini-embedding-001', @api_key, 'Hello world');
@@ -165,28 +165,39 @@ public:
 
 ## Supported AI Models
 
+Model names are passed through unchanged; only the provider is validated.
+
 ### Anthropic Claude
-- claude-fable-5 (most capable)
-- claude-opus-5 (recommended default)
-- claude-sonnet-5
-- claude-haiku-4-5
-- Previous generations: claude-opus-4-8, claude-opus-4-7, claude-opus-4-6,
-  claude-opus-4-5-20251101, claude-sonnet-4-6, claude-sonnet-4-5-20250929
+- claude-opus-5-5 (recommended default)
+- claude-fable-5-2 (most capable)
+- claude-sonnet-5-5
+- claude-haiku-5-5
+- Previous generations: claude-fable-5-1, claude-fable-5, claude-opus-5,
+  claude-opus-4-8, claude-opus-4-7, claude-opus-4-6, claude-sonnet-5,
+  claude-sonnet-4-6, claude-haiku-4-5
+
+Opus 5.5 and Fable 5.2 always think; thinking counts against `max_tokens`,
+which is why the request ceiling is 16000 rather than a small value.
 
 ### Google Gemini
 **Generative:**
-- gemini-2.5-flash
-- gemini-2.5-pro
-- gemini-3-flash-preview
-- gemini-3-pro-preview
+- gemini-3.8-flash
+- gemini-3.6-flash
+- gemini-3.5-flash-lite (used by the tests)
+- gemini-4-hydrogen (and gemini-4-carbon, gemini-4-neon, gemini-4-argon)
+- gemini-3.1-pro-preview
+- Deprecated: gemini-2.5-flash, gemini-2.5-pro (rerouted Dec 1, 2026)
 
 **Embeddings:**
+- gemini-embedding-2
 - gemini-embedding-001 (3072 dimensions by default)
 
 ### OpenAI
 **Chat:**
-- gpt-4o
-- gpt-4o-mini
+- gpt-6.2-astra
+- gpt-6.2-sol
+- gpt-6-luna (used by the tests)
+- Deprecated: gpt-4o, gpt-4o-mini (shut down Jan 14, 2027)
 
 **Embeddings:**
 - text-embedding-3-small (1536 dimensions)

@@ -28,6 +28,19 @@ namespace vsql_ai {
 // Bytes of an unrecognised response body quoted back in an error message.
 constexpr size_t kMaxErrorBodyBytes = 100;
 
+// Timeout for the hosted providers. Current models from all three reason
+// before answering by default (Claude Opus 5.5 and Fable 5.2 cannot turn it
+// off), so a single non-streaming response routinely takes longer than the
+// 30 seconds that sufficed for earlier generations.
+constexpr int kCloudTimeoutSeconds = 120;
+
+// Output token ceiling for Anthropic requests. On models that always think,
+// thinking tokens count against max_tokens, so the old 1024 could be spent
+// entirely on reasoning and leave no text. 16000 is the recommended ceiling
+// for non-streaming requests and its text output still fits the 64 KiB
+// result buffer in practice.
+constexpr int kAnthropicMaxTokens = 16000;
+
 std::string_view truncate_utf8_view(std::string_view text, size_t max_bytes) {
   if (text.size() <= max_bytes) {
     return text;
@@ -95,7 +108,7 @@ std::map<std::string, std::string> AnthropicProvider::get_headers(
 std::string AnthropicProvider::build_request_body(
     const std::string& model, const std::string& prompt) const {
   json request = {{"model", model},
-                  {"max_tokens", 1024},
+                  {"max_tokens", kAnthropicMaxTokens},
                   {"messages", json::array({json::object({{"role", "user"},
                                                           {"content", prompt}})})}};
 
@@ -132,6 +145,23 @@ std::string AnthropicProvider::parse_response(const std::string& response_json,
       }
     }
 
+    // No text block: say why when the API told us. A refusal arrives as HTTP
+    // 200 with stop_reason "refusal", and a max_tokens stop on a thinking
+    // model can leave nothing but thinking blocks.
+    const json& const_response = response;
+    auto stop_reason = const_response.find("stop_reason");
+    if (stop_reason != const_response.end() && stop_reason->is_string()) {
+      const std::string reason = stop_reason->get<std::string>();
+      if (reason == "refusal") {
+        *error = "Model declined the request (stop_reason: refusal)";
+        return "";
+      }
+      if (reason == "max_tokens") {
+        *error = "Model reached max_tokens before producing text";
+        return "";
+      }
+    }
+
     *error = "Invalid response format: missing content";
     return "";
 
@@ -151,7 +181,7 @@ std::string AnthropicProvider::prompt(const std::string& model,
 
   // Make HTTP request
   auto response = HttpClient::post(get_endpoint(), "/v1/messages", request_body,
-                              headers, 30);
+                              headers, kCloudTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -261,7 +291,8 @@ std::string GoogleProvider::prompt(const std::string& model,
 
   // Make HTTP request
   auto response =
-      HttpClient::post(get_endpoint(), path, request_body, headers, 30);
+      HttpClient::post(get_endpoint(), path, request_body, headers,
+                       kCloudTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -302,7 +333,8 @@ std::string GoogleProvider::embed(const std::string& model,
   std::string path = "/v1beta/models/" + model + ":embedContent";
 
   // Make HTTP request
-  auto response = HttpClient::post(get_endpoint(), path, request_body, headers, 30);
+  auto response = HttpClient::post(get_endpoint(), path, request_body, headers,
+                                   kCloudTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -432,7 +464,7 @@ std::string OpenAIProvider::prompt(const std::string& model,
   // Make HTTP request
   auto response =
       HttpClient::post(get_endpoint(), "/v1/chat/completions", request_body,
-                  headers, 30);
+                  headers, kCloudTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
@@ -471,7 +503,8 @@ std::string OpenAIProvider::embed(const std::string& model,
 
   // Make HTTP request
   auto response =
-      HttpClient::post(get_endpoint(), "/v1/embeddings", request_body, headers, 30);
+      HttpClient::post(get_endpoint(), "/v1/embeddings", request_body, headers,
+                       kCloudTimeoutSeconds);
 
   // Check for network errors
   if (!response.error.empty()) {
