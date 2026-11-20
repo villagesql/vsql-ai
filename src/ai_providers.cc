@@ -785,6 +785,10 @@ std::unique_ptr<AIProvider> create_provider(const std::string& provider_name) {
     return std::make_unique<LocalProvider>();
   }
 
+  if (provider_name == "typesafe") {
+    return std::make_unique<TypeSafeProvider>();
+  }
+
   // Unknown provider
   return nullptr;
 }

@@ -1,0 +1,65 @@
+# ai_decision() argument and question validation. Needs no network or keyring:
+# every call here fails before a request would be sent.
+
+INSTALL EXTENSION vsql_ai;
+
+SET GLOBAL vsql_ai.models = '{
+  "local":   {"provider": "local", "model": "m"},
+  "decider": {"provider": "google", "model": "gemini-decision-1",
+              "key_id": "gemini_key", "key_owner": "root@localhost"}
+}';
+SET @q = '{"is_billing": {"type": "noul", "instructions": "Is this about billing?"}}';
+
+--echo #
+--echo # NULL in any argument yields NULL with no warning; empty is rejected
+--echo #
+SELECT ai_decision(NULL, 'text', @q) IS NULL AS null_model_id_is_null;
+SELECT ai_decision('decider', NULL, @q) IS NULL AS null_input_is_null;
+SELECT ai_decision('decider', 'text', NULL) IS NULL AS null_questions_is_null;
+SELECT ai_decision('', 'text', @q) IS NULL AS empty_model_id_is_null;
+SELECT ai_decision('decider', '', @q) IS NULL AS empty_input_is_null;
+
+--echo #
+--echo # Questions are checked before the model is looked up
+--echo #
+SELECT ai_decision('unregistered', 'text', '{not json') IS NULL AS invalid_json;
+SELECT ai_decision('decider', 'text', '[]') IS NULL AS not_object;
+SELECT ai_decision('decider', 'text', '{}') IS NULL AS no_questions;
+SELECT ai_decision('decider', 'text',
+  '{"has space": {"type": "noul", "instructions": "x"}}') IS NULL AS bad_name;
+SELECT ai_decision('decider', 'text',
+  '{"q": "Is it billing?"}') IS NULL AS question_not_object;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "noul", "instructions": "x", "hint": "y"}}') IS NULL AS unknown_field;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"instructions": "x"}}') IS NULL AS no_type;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "box", "instructions": "x"}}') IS NULL AS unknown_type;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "noul"}}') IS NULL AS no_instructions;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "noul", "instructions": "x", "criteria": {"yes": "y"}}}') IS NULL AS bad_noul_criteria;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "choice", "instructions": "x", "criteria": {"only": "one"}}}') IS NULL AS one_choice;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "choice", "instructions": "x", "criteria": {"a": 1, "b": 2}}}') IS NULL AS non_string_choice;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "score", "instructions": "x", "criteria": ["only"]}}') IS NULL AS one_level;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "score", "instructions": "x", "criteria": ["1","2","3","4","5","6","7","8","9","10","11"]}}') IS NULL AS eleven_levels;
+SELECT ai_decision('decider', 'text',
+  '{"q": {"type": "score", "instructions": "x", "criteria": ["low", ""]}}') IS NULL AS empty_level;
+
+--echo #
+--echo # Valid questions then go through the registry and the keyring
+--echo #
+SELECT ai_decision('unregistered', 'text', @q) IS NULL AS unregistered_is_null;
+SELECT ai_decision('decider', 'text', @q) IS NULL AS no_keyring_is_null;
+
+--echo #
+--echo # A provider without a decisions API says so
+--echo #
+SELECT ai_decision('local', 'text', @q) IS NULL AS no_decisions_api;
+
+SET GLOBAL vsql_ai.models = DEFAULT;
+UNINSTALL EXTENSION vsql_ai;

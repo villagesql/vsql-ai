@@ -33,6 +33,7 @@ make install
 **Core Components:**
 - `src/ai_functions.cc` - VEF function implementations (`ai_prompt`, `ai_embedding`), the `vsql_ai.models` system variable, keyring reads, and extension registration
 - `src/model_registry.h/cc` - Parses and validates `vsql_ai.models` entries
+- `src/decisions.h/cc` - `ai_decision`: question validation, per-provider request translation and answer normalization, and the providers' `decide()` methods
 - `src/ai_providers.h` - Abstract provider interface
 - `src/ai_providers.cc` - Concrete provider implementations (Anthropic, Google, OpenAI, Local/Ollama)
 - `src/http_client.h/cc` - HTTP/HTTPS client for API calls
@@ -45,6 +46,7 @@ make install
 **Available Functions:**
 - `ai_prompt(model_id, prompt)` - Send a prompt to a registered model and get a text response
 - `ai_embedding(model_id, text)` - Generate a text embedding with a registered model
+- `ai_decision(model_id, input, questions)` - Ask a decision model noul/choice/score questions; returns a normalized JSON answers map (see `src/decisions.h` for both shapes)
 
 **Model registry and keys:** `model_id` is looked up in the `vsql_ai.models`
 system variable, a JSON object mapping each ID to `provider`, `model`,
@@ -178,8 +180,9 @@ public:
 
 ### Concrete Providers
 - **AnthropicProvider**: Implements Claude API (messages endpoint)
-- **GoogleProvider**: Implements Gemini API (generateContent, embedContent endpoints)
-- **OpenAIProvider**: Implements OpenAI API (chat/completions, embeddings endpoints)
+- **GoogleProvider**: Implements Gemini API (generateContent, embedContent endpoints; `/v1beta/decisions` for `gemini-decision-1`)
+- **OpenAIProvider**: Implements OpenAI API (chat/completions, embeddings endpoints; `/v1/decisions`, array-shaped, translated to and from the shared map shape)
+- **TypeSafeProvider**: TypeSafe Jev via `/v1/systemone`; decisions only (`prompt`/`embed` return an error)
 - **LocalProvider**: Connects to Ollama on 127.0.0.1:11434 — `/api/chat` (native, with `"think": false`) for prompting and the OpenAI-compatible `/v1/embeddings` for embeddings. No API key required; 300-second timeout.
 
 ### Adding a New Provider
@@ -217,6 +220,9 @@ which is why the request ceiling is 16000 rather than a small value.
 - gemini-embedding-2
 - gemini-embedding-001 (3072 dimensions by default)
 
+**Decisions:**
+- gemini-decision-1 (beta, `/v1beta/decisions`)
+
 ### OpenAI
 **Chat:**
 - gpt-6.2-astra
@@ -227,6 +233,11 @@ which is why the request ceiling is 16000 rather than a small value.
 **Embeddings:**
 - text-embedding-3-small (1536 dimensions)
 - text-embedding-3-large (3072 dimensions)
+
+**Decisions:** gpt-6-luna (the only model the decisions API accepts)
+
+### TypeSafe (decisions only)
+- jev-latest (= jev-1.14.0), jev-1.13.0
 
 ### Local (Ollama on 127.0.0.1:11434)
 Any model pulled in Ollama. No API key required. Common models:

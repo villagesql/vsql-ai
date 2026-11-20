@@ -268,6 +268,60 @@ void embedding_body(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
   out.set(embedding_json);
 }
 
+// Body of ai_decision. Wrapped by decision_impl for the same reason as
+// prompt_body above.
+void decision_body(vsql::StringArg model_id_arg, vsql::StringArg input_arg,
+                   vsql::StringArg questions_arg, vsql::StringResult out) {
+  if (model_id_arg.is_null() || input_arg.is_null() ||
+      questions_arg.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  std::string model_id(model_id_arg.value());
+  std::string input(input_arg.value());
+  std::string questions_text(questions_arg.value());
+
+  if (model_id.empty()) {
+    out.warning("Model ID cannot be empty");
+    return;
+  }
+  if (input.empty()) {
+    out.warning("Input cannot be empty");
+    return;
+  }
+
+  // Check the questions before reading the registry or the keyring, so a
+  // malformed question is reported as such whatever the model.
+  std::string error;
+  decisions::json questions;
+  if (!decisions::parse_questions(questions_text, &questions, &error)) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  ResolvedModel resolved;
+  if (!resolve_model(model_id, &resolved, &error)) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  std::string answers = resolved.provider->decide(
+      resolved.config.model, resolved.api_key, input, questions, &error);
+  if (!error.empty()) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  // Clipped JSON is corrupt JSON, so refuse rather than truncate.
+  if (answers.size() > out.buffer().size()) {
+    out.warning("Decision answers too large for the result buffer; ask "
+                "fewer questions per call");
+    return;
+  }
+  out.set(answers);
+}
+
 }  // namespace
 
 namespace {
@@ -313,6 +367,17 @@ void embedding_impl(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
   }
 }
 
+void decision_impl(vsql::StringArg model_id_arg, vsql::StringArg input_arg,
+                   vsql::StringArg questions_arg, vsql::StringResult out) {
+  try {
+    decision_body(model_id_arg, input_arg, questions_arg, out);
+  } catch (const std::exception& e) {
+    report_exception(e, out);
+  } catch (...) {
+    out.warning("Internal error");
+  }
+}
+
 }  // namespace vsql_ai
 
 // =============================================================================
@@ -338,5 +403,13 @@ VEF_GENERATE_ENTRY_POINTS(
                   .returns(vsql::STRING)
                   .param(vsql::STRING)  // model ID from vsql_ai.models
                   .param(vsql::STRING)  // text
+                  .buffer_size(65535)
+                  .build())
+
+        .func(vsql::make_func<&vsql_ai::decision_impl>("ai_decision")
+                  .returns(vsql::STRING)
+                  .param(vsql::STRING)  // model ID from vsql_ai.models
+                  .param(vsql::STRING)  // input the questions are about
+                  .param(vsql::STRING)  // questions, as JSON
                   .buffer_size(65535)
                   .build()))

@@ -1,0 +1,73 @@
+# Test ai_decision() with the google decisions API (gemini-decision-1)
+
+if (!$GEMINI_API_KEY) {
+  skip Requires GEMINI_API_KEY environment variable;
+}
+
+--source ../include/keyring_setup.inc
+INSTALL EXTENSION vsql_ai;
+
+# Store the API key in the keyring. A key stored with keyring_key_store() is
+# owned by the account that stored it. The statement carries the key, so it
+# is kept out of the result file and, with sql_log_off, out of the general
+# query log that MTR enables.
+--disable_query_log
+--disable_result_log
+SET SESSION sql_log_off = ON;
+--eval SELECT keyring_key_store('test_google_key', 'SECRET', '$GEMINI_API_KEY')
+SET SESSION sql_log_off = OFF;
+--enable_result_log
+--enable_query_log
+SELECT keyring_key_store('test_invalid_key', 'SECRET', 'invalid_key_12345');
+
+SET GLOBAL vsql_ai.models = '{
+  "live":    {"provider": "google", "model": "gemini-decision-1",
+              "key_id": "test_google_key", "key_owner": "root@localhost"},
+  "bad_key": {"provider": "google", "model": "gemini-decision-1",
+              "key_id": "test_invalid_key", "key_owner": "root@localhost"}
+}';
+
+SET @input = 'Subject: URGENT - invoice #4411 charged twice! I was billed 250 dollars twice this morning and need a refund today.';
+SET @questions = '{
+  "is_billing": {"type": "noul", "instructions": "Is this message about billing?",
+                 "criteria": {"true": "About charges, invoices or refunds",
+                              "false": "About anything else"}},
+  "tone":       {"type": "choice", "instructions": "What is the tone of this message?",
+                 "criteria": {"angry": "Upset or hostile", "calm": "Neutral or polite",
+                              "excited": "Enthusiastic"}},
+  "urgency":    {"type": "score", "instructions": "How urgent is this message?",
+                 "criteria": ["Can wait", "Needs attention this week",
+                              "Needs attention today"]}
+}';
+
+# Test with invalid API key - should produce a warning
+SELECT ai_decision('bad_key', @input, @questions);
+SHOW WARNINGS;
+
+--echo # Running live API test
+
+SET @answers = ai_decision('live', @input, @questions);
+SELECT JSON_VALID(@answers) AS valid_json;
+SELECT JSON_LENGTH(@answers) AS answer_count;
+
+# Clear-cut questions, so the answers themselves are stable
+SELECT JSON_EXTRACT(@answers, '$.is_billing.type') AS noul_type,
+       JSON_EXTRACT(@answers, '$.is_billing.noul') > 0.5 AS is_billing;
+SELECT JSON_EXTRACT(@answers, '$.tone.type') AS choice_type,
+       JSON_UNQUOTE(JSON_EXTRACT(@answers, '$.tone.choice')) AS tone,
+       JSON_LENGTH(JSON_EXTRACT(@answers, '$.tone.probabilities')) AS tone_options,
+       JSON_CONTAINS_PATH(@answers, 'one', '$.tone.confidence') AS tone_has_confidence;
+SELECT JSON_EXTRACT(@answers, '$.urgency.type') AS score_type,
+       JSON_EXTRACT(@answers, '$.urgency.score') > 1 AS is_urgent,
+       JSON_LENGTH(JSON_EXTRACT(@answers, '$.urgency.probabilities')) AS urgency_levels,
+       JSON_UNQUOTE(JSON_EXTRACT(@answers, '$.urgency.legend."2"')) AS top_level;
+
+# A noul answer carries confidence only when the provider returns one
+SELECT JSON_CONTAINS_PATH(@answers, 'one', '$.is_billing.confidence') AS noul_has_confidence;
+
+# Cleanup
+SET GLOBAL vsql_ai.models = DEFAULT;
+SELECT keyring_key_remove('test_google_key');
+SELECT keyring_key_remove('test_invalid_key');
+UNINSTALL EXTENSION vsql_ai;
+--source ../include/keyring_teardown.inc

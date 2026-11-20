@@ -22,6 +22,8 @@
 #include <string>
 #include <string_view>
 
+#include "decisions.h"
+
 namespace vsql_ai {
 
 // Shorten a UTF-8 string to at most max_bytes without splitting a multi-byte
@@ -50,6 +52,15 @@ class AIProvider {
                             const std::string& api_key,
                             const std::string& text,
                             std::string* error) = 0;
+
+  // Answer a set of decision questions about `input` with a decision model
+  // (see decisions.h for the question and answer shapes). Returns the answers
+  // as JSON text. Providers without a decisions API report so in *error.
+  virtual std::string decide(const std::string& model,
+                             const std::string& api_key,
+                             const std::string& input,
+                             const decisions::json& questions,
+                             std::string* error);
 
   // Whether a non-empty API key is required. Locally hosted providers do not
   // authenticate, so the caller asks the provider rather than testing its name.
@@ -86,6 +97,11 @@ class GoogleProvider : public AIProvider {
   std::string embed(const std::string& model, const std::string& api_key,
                     const std::string& text, std::string* error) override;
 
+  std::string decide(const std::string& model, const std::string& api_key,
+                     const std::string& input,
+                     const decisions::json& questions,
+                     std::string* error) override;
+
  private:
   std::string get_endpoint() const;
   std::map<std::string, std::string> get_headers(
@@ -104,6 +120,11 @@ class OpenAIProvider : public AIProvider {
 
   std::string embed(const std::string& model, const std::string& api_key,
                     const std::string& text, std::string* error) override;
+
+  std::string decide(const std::string& model, const std::string& api_key,
+                     const std::string& input,
+                     const decisions::json& questions,
+                     std::string* error) override;
 
  private:
   std::string get_endpoint() const;
@@ -135,6 +156,23 @@ class LocalProvider : public AIProvider {
                                   const std::string& prompt) const;
   std::string parse_response(const std::string& response_json,
                              std::string* error) const;
+};
+
+// TypeSafe provider: Jev decision models through the System One API. It
+// offers no text generation or embeddings.
+class TypeSafeProvider : public AIProvider {
+ public:
+  std::string prompt(const std::string& model, const std::string& api_key,
+                     const std::string& prompt_text,
+                     std::string* error) override;
+
+  std::string embed(const std::string& model, const std::string& api_key,
+                    const std::string& text, std::string* error) override;
+
+  std::string decide(const std::string& model, const std::string& api_key,
+                     const std::string& input,
+                     const decisions::json& questions,
+                     std::string* error) override;
 };
 
 // Factory function to create provider by name
