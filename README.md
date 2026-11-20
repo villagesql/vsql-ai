@@ -92,7 +92,7 @@ SELECT ai_prompt('claude', 'Explain quantum computing in one sentence');
 SELECT ai_embedding('gemini-embed', 'Machine learning is fascinating');
 ```
 
-> **Upgrading from 0.0.7 or earlier:** `ai_prompt(provider, model, api_key,
+> **Upgrading from 0.0.8 or earlier:** `ai_prompt(provider, model, api_key,
 > prompt)` and `ai_embedding(provider, model, api_key, text)` are gone. Calls
 > with four arguments now fail with `wrong number of arguments`. Register each
 > model in `vsql_ai.models`, store its key in the keyring, and pass the model
