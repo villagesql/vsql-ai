@@ -1,0 +1,43 @@
+# ai_request() and ai_embedding_binary() argument checks. Needs no network
+# or keyring: every call here fails before a request would be sent.
+
+INSTALL EXTENSION vsql_ai;
+
+SET GLOBAL vsql_ai.models = '{
+  "local":  {"provider": "local", "model": "no-such-model-vsql-test"},
+  "gemini": {"provider": "google", "model": "gemini-3.5-flash-lite",
+             "key_id": "gemini_key", "key_owner": "root@localhost"}
+}';
+
+--echo #
+--echo # NULL in either argument yields NULL with no warning; empty is rejected
+--echo #
+SELECT ai_request(NULL, '{}') IS NULL AS null_model_id_is_null;
+SELECT ai_request('local', NULL) IS NULL AS null_body_is_null;
+SELECT ai_request('', '{}') IS NULL AS empty_model_id_is_null;
+SELECT ai_request('local', '') IS NULL AS empty_body_is_null;
+SELECT ai_embedding_binary(NULL, 'text') IS NULL AS null_embed_model_id_is_null;
+SELECT ai_embedding_binary('local', NULL) IS NULL AS null_text_is_null;
+SELECT ai_embedding_binary('', 'text') IS NULL AS empty_embed_model_id_is_null;
+SELECT ai_embedding_binary('local', '') IS NULL AS empty_text_is_null;
+
+--echo #
+--echo # The model comes from the registry
+--echo #
+SELECT ai_request('unregistered', '{}') IS NULL AS unregistered_is_null;
+SELECT ai_request('gemini', '{}') IS NULL AS no_keyring_is_null;
+SELECT ai_embedding_binary('unregistered', 'text') IS NULL AS unregistered_embed_is_null;
+
+--echo #
+--echo # The body must be a JSON object, may not name another model, and may
+--echo # not ask for streaming
+--echo #
+SELECT ai_request('local', '{not json') IS NULL AS invalid_json_is_null;
+SELECT ai_request('local', '["messages"]') IS NULL AS not_object_is_null;
+SELECT ai_request('local', '{"model": "llama-70b", "messages": []}') IS NULL AS other_model_is_null;
+SELECT ai_request('local', '{"model": 5}') IS NULL AS non_string_model_is_null;
+SELECT ai_request('local', '{"stream": true}') IS NULL AS stream_is_null;
+SELECT ai_request('local', '{"stream": "no"}') IS NULL AS non_boolean_stream_is_null;
+
+SET GLOBAL vsql_ai.models = DEFAULT;
+UNINSTALL EXTENSION vsql_ai;

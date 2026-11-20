@@ -14,5 +14,11 @@ contains_success
 SELECT LENGTH(ai_prompt('live', 'Reply with just: OK')) > 0 AS got_response;
 got_response
 1
+SET @response = ai_request('live', '{"messages": [{"role": "user", "content": "Say only the word: SUCCESS"}], "think": false}');
+SELECT JSON_VALID(@response) AS valid_json,
+JSON_EXTRACT(@response, '$.done') AS done,
+JSON_UNQUOTE(JSON_EXTRACT(@response, '$.message.content')) LIKE '%SUCCESS%' AS contains_success;
+valid_json	done	contains_success
+1	true	1
 SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

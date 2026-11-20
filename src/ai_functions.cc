@@ -23,6 +23,7 @@
 #include <string>
 
 #include "ai_providers.h"
+#include "embedding_format.h"
 #include "model_registry.h"
 
 namespace vsql_ai {
@@ -268,6 +269,104 @@ void embedding_body(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
   out.set(embedding_json);
 }
 
+// Body of ai_embedding_binary: the same embedding as ai_embedding, packed as
+// little-endian float32 (see embedding_format.h). Wrapped by
+// embedding_binary_impl for the same reason as prompt_body above.
+void embedding_binary_body(vsql::StringArg model_id_arg,
+                           vsql::StringArg text_arg, vsql::BinaryResult out) {
+  if (model_id_arg.is_null() || text_arg.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  std::string model_id(model_id_arg.value());
+  std::string text(text_arg.value());
+
+  if (model_id.empty()) {
+    out.warning("Model ID cannot be empty");
+    return;
+  }
+  if (text.empty()) {
+    out.warning("Text cannot be empty");
+    return;
+  }
+
+  std::string error;
+  ResolvedModel resolved;
+  if (!resolve_model(model_id, &resolved, &error)) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  std::string embedding_json = resolved.provider->embed(
+      resolved.config.model, resolved.api_key, text, &error);
+  if (!error.empty()) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  std::string bytes;
+  if (!pack_float32_le(embedding_json, &bytes, &error)) {
+    out.warning(error);
+    return;
+  }
+
+  // Refuse rather than report the full length: an oversized result makes the
+  // server grow the buffer and call the function again, which would repeat
+  // the provider request.
+  if (bytes.size() > out.buffer().size()) {
+    out.warning("Embedding too large for the result buffer");
+    return;
+  }
+  out.set({reinterpret_cast<const unsigned char*>(bytes.data()),
+           bytes.size()});
+}
+
+// Body of ai_request: a caller-written JSON body sent to the registered
+// model's native endpoint, with the response returned as is.
+void request_body(vsql::StringArg model_id_arg, vsql::StringArg body_arg,
+                  vsql::StringResult out) {
+  if (model_id_arg.is_null() || body_arg.is_null()) {
+    out.set_null();
+    return;
+  }
+
+  std::string model_id(model_id_arg.value());
+  std::string body(body_arg.value());
+
+  if (model_id.empty()) {
+    out.warning("Model ID cannot be empty");
+    return;
+  }
+  if (body.empty()) {
+    out.warning("Request body cannot be empty");
+    return;
+  }
+
+  std::string error;
+  ResolvedModel resolved;
+  if (!resolve_model(model_id, &resolved, &error)) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  std::string response = resolved.provider->request(
+      resolved.config.model, resolved.api_key, body, &error);
+  if (!error.empty()) {
+    out.warning(truncate_utf8(error, kMaxWarningBytes));
+    return;
+  }
+
+  // Clipped JSON is corrupt JSON, and reporting the full length would make
+  // the server call the function, and so the provider, again.
+  if (response.size() > out.buffer().size()) {
+    out.warning("Response too large for the result buffer; ask the provider "
+                "for a shorter response");
+    return;
+  }
+  out.set(response);
+}
+
 // Body of ai_decision. Wrapped by decision_impl for the same reason as
 // prompt_body above.
 void decision_body(vsql::StringArg model_id_arg, vsql::StringArg input_arg,
@@ -367,6 +466,33 @@ void embedding_impl(vsql::StringArg model_id_arg, vsql::StringArg text_arg,
   }
 }
 
+void embedding_binary_impl(vsql::StringArg model_id_arg,
+                           vsql::StringArg text_arg, vsql::BinaryResult out) {
+  try {
+    embedding_binary_body(model_id_arg, text_arg, out);
+  } catch (const std::exception& e) {
+    try {
+      out.warning(truncate_utf8(std::string("Internal error: ") + e.what(),
+                                kMaxWarningBytes));
+    } catch (...) {
+      out.warning("Internal error");
+    }
+  } catch (...) {
+    out.warning("Internal error");
+  }
+}
+
+void request_impl(vsql::StringArg model_id_arg, vsql::StringArg body_arg,
+                  vsql::StringResult out) {
+  try {
+    request_body(model_id_arg, body_arg, out);
+  } catch (const std::exception& e) {
+    report_exception(e, out);
+  } catch (...) {
+    out.warning("Internal error");
+  }
+}
+
 void decision_impl(vsql::StringArg model_id_arg, vsql::StringArg input_arg,
                    vsql::StringArg questions_arg, vsql::StringResult out) {
   try {
@@ -403,6 +529,21 @@ VEF_GENERATE_ENTRY_POINTS(
                   .returns(vsql::STRING)
                   .param(vsql::STRING)  // model ID from vsql_ai.models
                   .param(vsql::STRING)  // text
+                  .buffer_size(65535)
+                  .build())
+
+        .func(vsql::make_func<&vsql_ai::embedding_binary_impl>(
+                  "ai_embedding_binary")
+                  .returns(vsql::BINARY)
+                  .param(vsql::STRING)  // model ID from vsql_ai.models
+                  .param(vsql::STRING)  // text
+                  .buffer_size(65535)
+                  .build())
+
+        .func(vsql::make_func<&vsql_ai::request_impl>("ai_request")
+                  .returns(vsql::STRING)
+                  .param(vsql::STRING)  // model ID from vsql_ai.models
+                  .param(vsql::STRING)  // request body, as JSON
                   .buffer_size(65535)
                   .build())
 

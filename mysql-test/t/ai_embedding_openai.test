@@ -50,6 +50,13 @@ SET @embedding2 = ai_embedding('live', 'Machine learning');
 
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 
+# ai_embedding_binary(): the same embedding as packed little-endian float32,
+# four bytes per dimension
+SET @json = ai_embedding('live', 'Hello world');
+SET @bin = ai_embedding_binary('live', 'Hello world');
+SELECT LENGTH(@bin) = 4 * JSON_LENGTH(@json) AS four_bytes_per_dimension,
+       CHARSET(@bin) AS charset;
+
 # Cleanup
 SET GLOBAL vsql_ai.models = DEFAULT;
 SELECT keyring_key_remove('test_openai_key');

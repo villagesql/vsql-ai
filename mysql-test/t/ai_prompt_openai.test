@@ -39,6 +39,13 @@ SELECT ai_prompt('live', 'Say only the word: SUCCESS') LIKE '%SUCCESS%' AS conta
 # Verify we got a non-empty response
 SELECT LENGTH(ai_prompt('live', 'Reply with just: OK')) > 0 AS got_response;
 
+# ai_request(): a native Chat Completions body; the model comes from the
+# registry.
+SET @response = ai_request('live', '{"messages": [{"role": "user", "content": "Say only the word: SUCCESS"}]}');
+SELECT JSON_VALID(@response) AS valid_json,
+       JSON_UNQUOTE(JSON_EXTRACT(@response, '$.object')) AS object,
+       JSON_UNQUOTE(JSON_EXTRACT(@response, '$.choices[0].message.content')) LIKE '%SUCCESS%' AS contains_success;
+
 # Cleanup
 SET GLOBAL vsql_ai.models = DEFAULT;
 SELECT keyring_key_remove('test_openai_key');

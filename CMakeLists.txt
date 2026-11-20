@@ -72,6 +72,8 @@ add_library(ai_ext SHARED
     src/ai_functions.cc
     src/model_registry.cc
     src/decisions.cc
+    src/embedding_format.cc
+    src/raw_request.cc
 )
 
 # Include directories
@@ -87,6 +89,33 @@ target_include_directories(ai_ext SYSTEM PRIVATE
 target_link_libraries(ai_ext PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 # Create the VEB package
+# Unit tests for code that SQL cannot reach on demand (see the file's header).
+# They link the extension's sources into an ordinary executable and need no
+# server. Run with `ctest` after building.
+option(VSQL_AI_BUILD_TESTS "Build the vsql_ai unit tests" ON)
+if(VSQL_AI_BUILD_TESTS)
+    enable_testing()
+    add_executable(vsql_ai_unittest
+        unittest/vsql_ai_unittest.cc
+        src/http_client.cc
+        src/ai_providers.cc
+        src/ai_functions.cc
+        src/model_registry.cc
+        src/decisions.cc
+        src/embedding_format.cc
+        src/raw_request.cc
+    )
+    target_include_directories(vsql_ai_unittest PRIVATE
+        ${VillageSQLExtensionFramework_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_include_directories(vsql_ai_unittest SYSTEM PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(vsql_ai_unittest PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    add_test(NAME vsql_ai_unittest COMMAND vsql_ai_unittest)
+endif()
+
 VEF_CREATE_VEB(
     NAME ${EXTENSION_NAME}
     LIBRARY_TARGET ai_ext

@@ -17,5 +17,11 @@ got_embedding
 SELECT LENGTH(@embedding2) > 10 AS got_second_embedding;
 got_second_embedding
 1
+SET @json = ai_embedding('live', 'Hello world');
+SET @bin = ai_embedding_binary('live', 'Hello world');
+SELECT LENGTH(@bin) = 4 * JSON_LENGTH(@json) AS four_bytes_per_dimension,
+CHARSET(@bin) AS charset;
+four_bytes_per_dimension	charset
+1	binary
 SET GLOBAL vsql_ai.models = DEFAULT;
 UNINSTALL EXTENSION vsql_ai;

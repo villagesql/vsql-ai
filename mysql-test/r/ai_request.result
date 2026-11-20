@@ -1,0 +1,95 @@
+INSTALL EXTENSION vsql_ai;
+SET GLOBAL vsql_ai.models = '{
+  "local":  {"provider": "local", "model": "no-such-model-vsql-test"},
+  "gemini": {"provider": "google", "model": "gemini-3.5-flash-lite",
+             "key_id": "gemini_key", "key_owner": "root@localhost"}
+}';
+#
+# NULL in either argument yields NULL with no warning; empty is rejected
+#
+SELECT ai_request(NULL, '{}') IS NULL AS null_model_id_is_null;
+null_model_id_is_null
+1
+SELECT ai_request('local', NULL) IS NULL AS null_body_is_null;
+null_body_is_null
+1
+SELECT ai_request('', '{}') IS NULL AS empty_model_id_is_null;
+empty_model_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Model ID cannot be empty
+SELECT ai_request('local', '') IS NULL AS empty_body_is_null;
+empty_body_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Request body cannot be empty
+SELECT ai_embedding_binary(NULL, 'text') IS NULL AS null_embed_model_id_is_null;
+null_embed_model_id_is_null
+1
+SELECT ai_embedding_binary('local', NULL) IS NULL AS null_text_is_null;
+null_text_is_null
+1
+SELECT ai_embedding_binary('', 'text') IS NULL AS empty_embed_model_id_is_null;
+empty_embed_model_id_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding_binary': Model ID cannot be empty
+SELECT ai_embedding_binary('local', '') IS NULL AS empty_text_is_null;
+empty_text_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding_binary': Text cannot be empty
+#
+# The model comes from the registry
+#
+SELECT ai_request('unregistered', '{}') IS NULL AS unregistered_is_null;
+unregistered_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Model 'unregistered' is not registered in vsql_ai.models
+SELECT ai_request('gemini', '{}') IS NULL AS no_keyring_is_null;
+no_keyring_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': No keyring component is installed; vsql_ai reads API keys from the MySQL keyring
+SELECT ai_embedding_binary('unregistered', 'text') IS NULL AS unregistered_embed_is_null;
+unregistered_embed_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_embedding_binary': Model 'unregistered' is not registered in vsql_ai.models
+#
+# The body must be a JSON object, may not name another model, and may
+# not ask for streaming
+#
+SELECT ai_request('local', '{not json') IS NULL AS invalid_json_is_null;
+invalid_json_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Request body must be a JSON object
+SELECT ai_request('local', '["messages"]') IS NULL AS not_object_is_null;
+not_object_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Request body must be a JSON object
+SELECT ai_request('local', '{"model": "llama-70b", "messages": []}') IS NULL AS other_model_is_null;
+other_model_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Request body names a different model; ai_request() uses the registered model 'no-such-model-vsql-test'
+SELECT ai_request('local', '{"model": 5}') IS NULL AS non_string_model_is_null;
+non_string_model_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Request body names a different model; ai_request() uses the registered model 'no-such-model-vsql-test'
+SELECT ai_request('local', '{"stream": true}') IS NULL AS stream_is_null;
+stream_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Streaming is not supported; ai_request() returns the whole response
+SELECT ai_request('local', '{"stream": "no"}') IS NULL AS non_boolean_stream_is_null;
+non_boolean_stream_is_null
+1
+Warnings:
+Warning	3200	VDF error in function 'ai_request': Streaming is not supported; ai_request() returns the whole response
+SET GLOBAL vsql_ai.models = DEFAULT;
+UNINSTALL EXTENSION vsql_ai;
