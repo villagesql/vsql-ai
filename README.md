@@ -8,7 +8,7 @@ A powerful AI extension for VillageSQL Server that adds AI prompt capabilities a
 
 - **AI Prompting**: Send prompts to AI models directly from SQL queries
 - **Multiple Providers**: Support for Anthropic Claude, Google Gemini, OpenAI GPT, and local Ollama
-- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama
+- **Embedding Generation**: Create text embeddings for vector search and similarity analysis using Google Gemini, OpenAI, or local Ollama; store them as JSON or in a [vsql-vector](https://github.com/villagesql/vsql-vector) `SVECTOR` column
 - **Decisions**: Ask decision models (Gemini Decision, TypeSafe Jev, OpenAI) yes/no, multiple-choice and scored questions and get calibrated probabilities back as JSON
 - **High Performance**: Efficient C++ implementation with minimal overhead
 - **Secure**: API keys stay in the MySQL keyring, never in SQL text; HTTPS with certificate verification
@@ -285,6 +285,60 @@ On VillageSQL 0.0.6 and earlier the result carries the binary character set,
 which `JSON` columns and JSON functions reject, so wrap the call in
 `CONVERT(... USING utf8mb4)` there. VillageSQL 0.0.7 and later return the
 right character set; the conversion is harmless to keep.
+
+#### Storing Embeddings in a Vector Column
+
+For similarity search, store embeddings in an `SVECTOR` column from the
+[vsql-vector](https://github.com/villagesql/vsql-vector) extension instead of
+JSON. `SVECTOR(n)` holds `n` float32 values in InnoDB-managed columnar
+storage, and vsql-vector provides `COSINE_DISTANCE`, `L2_DISTANCE`,
+`L1_DISTANCE` and `INNER_PRODUCT`. It is not bundled with the server: build
+and install it from its repository, and note that its README describes it as
+under active development and not yet recommended for production.
+
+Declare the column with the model's dimension (1536 for
+`text-embedding-3-small`, 3072 for `gemini-embedding-001`; vsql-vector allows
+up to 3072). `SVECTOR` accepts the JSON array `ai_embedding()` returns, but
+only as a value, not as an expression: vsql-vector cannot yet convert a
+function result into a typed vector, so `INSERT ... VALUES (..., ai_embedding(...))`
+fails with "cannot implicitly cast string expression". Assign the embedding to
+a user variable first:
+
+```sql
+INSTALL EXTENSION vsql_vector;
+
+-- 'embed' is a registered model ID for OpenAI's text-embedding-3-small:
+--   "embed": {"provider": "openai", "model": "text-embedding-3-small",
+--             "key_id": "openai_key", "key_owner": "root@localhost"}
+CREATE TABLE docs (
+    id        INT PRIMARY KEY,
+    body      TEXT,
+    embedding SVECTOR(1536)
+);
+
+SET @e = ai_embedding('embed', 'How do I reset my password?');
+INSERT INTO docs VALUES (1, 'How do I reset my password?', @e);
+
+SET @e = ai_embedding('embed', 'Best pizza toppings for a party');
+INSERT INTO docs VALUES (2, 'Best pizza toppings for a party', @e);
+```
+
+The distance functions take a stored vector, not a variable, so keep the
+query's embedding in a table too and join to it:
+
+```sql
+CREATE TABLE queries (id INT PRIMARY KEY, embedding SVECTOR(1536));
+SET @q = ai_embedding('embed', 'I cannot log in to my account');
+INSERT INTO queries VALUES (1, @q);
+
+SELECT d.id, d.body, COSINE_DISTANCE(d.embedding, q.embedding) AS dist
+FROM docs d JOIN queries q ON q.id = 1
+ORDER BY dist
+LIMIT 5;
+```
+
+Both restrictions are vsql-vector limitations (see its Known Limitations);
+the search is a full scan until it adds an index.
 
 ### Decisions
 
