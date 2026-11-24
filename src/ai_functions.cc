@@ -50,12 +50,28 @@ bool g_registry_known = false;
 
 // Runs while the server holds its global system-variable lock: keep it to a
 // short private lock and a copy.
+//
+// This is a preview::sys_var on_change callback: void return, no out
+// parameter to report through, and the SDK does not catch here any more than
+// it does at a VDF entry point (confirmed: neither preview/sys_var.h's
+// trampoline nor the server's vef_sys_var_update_trampoline wraps the call).
+// An escaping exception would therefore crash the server, not just this one
+// SET, while LOCK_system_variables_hash is held. The one throw-capable
+// operation here is the std::string copy below (bad_alloc on an
+// allocation failure); on that failure, leave the cache exactly as it was --
+// whatever read_registry() last saw stays in effect for this one SET, rather
+// than risk a half-updated g_registry or a server crash.
 void on_models_change(vsql::preview_sys_var::SysVarChange change) {
-  vsql::StringArg value = change.as_str();
-  std::string copy = value.is_null() ? std::string() : std::string(value.value());
-  std::lock_guard<std::mutex> lock(g_registry_mutex);
-  g_registry = std::move(copy);
-  g_registry_known = true;
+  try {
+    vsql::StringArg value = change.as_str();
+    std::string copy =
+        value.is_null() ? std::string() : std::string(value.value());
+    std::lock_guard<std::mutex> lock(g_registry_mutex);
+    g_registry = std::move(copy);
+    g_registry_known = true;
+  } catch (...) {
+    // Leave g_registry / g_registry_known as they were; see the comment above.
+  }
 }
 
 // The server does not necessarily unload the library on UNINSTALL EXTENSION,
