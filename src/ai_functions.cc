@@ -52,9 +52,10 @@ bool g_registry_known = false;
 // short private lock and a copy.
 //
 // This is a preview::sys_var on_change callback: void return, no out
-// parameter to report through, and the SDK does not catch here any more than
-// it does at a VDF entry point (confirmed: neither preview/sys_var.h's
-// trampoline nor the server's vef_sys_var_update_trampoline wraps the call).
+// parameter to report through, and no catch around it. The SDK wraps each VDF
+// entry point in VDF_EXCEPTIONS_TRY/CATCH (detail/func_builder.h), but neither
+// preview/sys_var.h's on_change trampoline nor the server's
+// vef_sys_var_update_trampoline wraps this call.
 // An escaping exception would therefore crash the server, not just this one
 // SET, while LOCK_system_variables_hash is held. The one throw-capable
 // operation here is the std::string copy below (bad_alloc on an
