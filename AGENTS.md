@@ -76,9 +76,9 @@ needs the `VSQL_AI_USER` privilege unless `vsql_ai.require_privilege` is OFF.
 - Variable naming: lowercase with underscores (e.g., `provider_name`)
 - Provider pattern: Abstract `AIProvider` base class with concrete implementations
 
-## VillageSQL Extension Framework (VEF) Pattern — Protocol V3
+## VillageSQL Extension Framework (VEF) Pattern — Protocol V5
 
-This extension uses the Protocol V3 stable SDK (`<villagesql/vsql.h>`).
+This extension uses the Protocol V5 stable SDK (`<villagesql/vsql.h>`), which needs VillageSQL 0.0.8 or later.
 
 ```cpp
 #include <villagesql/vsql.h>
@@ -101,7 +101,7 @@ VEF_GENERATE_ENTRY_POINTS(
 
 Qualify SDK names with `vsql::` — do not put a `using namespace vsql;` directive at file scope.
 
-Use `out.set_null()` for NULL, `out.warning("msg")` for soft errors (Warning 3200 + NULL), `out.error("msg")` for hard errors. Extension name/version come from `manifest.json`; `make_extension()` takes no args in V3.
+Use `out.set_null()` for NULL, `out.warning("msg")` for soft errors (Warning 3200 + NULL), `out.error("msg")` for hard errors. Extension name/version come from `manifest.json`; `make_extension()` takes no args.
 
 **Exception safety is the extension's responsibility.** The SDK does not wrap
 VDF implementations in a try/catch, so an exception escaping an entry point

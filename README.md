@@ -38,7 +38,7 @@ extensions, or if you are working on this extension itself.
 ### Build from Source
 
 #### Prerequisites
-- VillageSQL build directory (specified via `VillageSQL_BUILD_DIR`)
+- VillageSQL 0.0.8 or later build directory (specified via `VillageSQL_BUILD_DIR`)
 - CMake 3.16 or higher
 - C++17 compatible compiler
 - OpenSSL development libraries (for HTTPS connections)

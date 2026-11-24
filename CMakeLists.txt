@@ -22,10 +22,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Extension name
 set(EXTENSION_NAME "vsql_ai")
 
-# Find VillageSQL SDK.
-# The tests expect protocol 4, where a STRING argument is utf8mb4. Its headers
-# ship in the SDK's include-dev/ tree until protocol 4 is stable.
-set(VSQL_USE_DEV_ABI ON)
+# Find VillageSQL SDK. Builds against the default (stable, protocol 5) header
+# tree, which needs VillageSQL 0.0.8 or later. Protocol 5 has the utf8mb4
+# STRING-argument conversion and the on_init/on_deinit hooks this extension
+# uses. The keyring, sys_var and mysql_services headers it also uses ship in
+# the same tree but are preview capabilities, not part of the stable protocol.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(VillageSQL REQUIRED)
 
